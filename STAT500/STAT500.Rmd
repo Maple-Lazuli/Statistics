@@ -22,6 +22,7 @@ setwd("/home/maple/CodeProjects/Statistics/STAT500")
 library(dplyr)
 library(ggplot2)
 library(qqplotr)
+library(tidyr)
 ```
 
 # Collecting and Summarizing Data
@@ -623,7 +624,7 @@ qt(1 - alpha, df)
 
 Getting the p-value:
 
-$p\_value = P(T_{26, 0.05} >$ `r t`$) =$ `r 1 - qt(t, df)`
+$p\_value = P(T_{26, 0.05} >$ `r t`$) =$ `r 1 - pt(t, df)`
 
 Conclusion:
 
@@ -706,7 +707,7 @@ qt(1 - alpha, df)
 
 Getting the p-value:
 
-$p\_value = P(T_{10, 0.025} >|$ `r t`$|) =$ `r 1 - qt(t, df)`
+$p\_value = P(T_{10, 0.025} >|$ `r t`$|) =$ `r 1 - pt(t, df)`
 
 Conclusion:
 
@@ -729,8 +730,67 @@ Is the p-value less than $\alpha$?
  
 There is statistical evidence to conclude that there is a difference in average tread wear between the weight and groove methods.
 
-
 # Chi-Square Test for Independence
+
+**Scenario:** The fire department in a large city is examining its promotion policy to assess if there is the potential for an age discrimination lawsuit. A random sample of 248 promotion decisions over the past years yields the following information:
+
+| Promotion Decision | Under 30 | 30–39 | 40–49 | 50 or Older |
+|--------------------|----------|-------|-------|-------------|
+| Promoted           | 9        | 29    | 34    | 12          |
+| Not Promoted       | 41       | 39    | 46    | 38          |
+
+```{r}
+df <- data.frame(n = c(9,41), decision = c("Promoted", "Not Promoted"), age = "Under 30")
+df <- rbind(df, data.frame(n = c(29,39), decision = c("Promoted", "Not Promoted"), age = "30-39"))
+df <- rbind(df, data.frame(n = c(34,46), decision = c("Promoted", "Not Promoted"), age = "40-49"))
+df <- rbind(df, data.frame(n = c(12,38), decision = c("Promoted", "Not Promoted"), age = "50 or Older"))
+```
+
+(a) Provide a graph of the promotion information.
+
+```{r}
+ggplot(df, aes(x = age, y = n, color = age, fill = age)) + geom_col(alpha = 0.5) + facet_wrap(~decision)  + coord_flip()
+```
+
+(b) Is the promotion decision for the fireman related to the age of fireman?
+
+Hypotheses:
+
+$H_0:$ Age and promotion is independent
+
+$H_a:$ Age and promotion is dependent
+
+
+Getting the test statistic:
+
+$\chi^{2*} = \sum{\frac{(O_i - E_i)^2}{E_i}$
+
+```{r}
+df_chi <- df
+for (i in 1:nrow(df)){
+  decision_type <- df[i,]$decision
+  age_type <- df[i,]$age
+  # sum along each row and column :)
+  expected <- sum(df[df$age == age_type,]$n) * sum(df[df$decision == decision_type,]$n)
+  expected <- expected/sum(df$n)
+  df_chi[i,]$n <- ((df[i,]$n - expected)**2)/expected
+}
+chi_sq <- sum(df_chi$n)
+chi_sq
+```
+
+
+Getting the rejection region:
+
+```{r}
+alpha = 0.05/2
+df = (nrow(df) - 1) * (ncol(df) - 1 )
+qchisq(alpha, df)
+```
+
+(c) What is the population to which your conclusion in part (b) is applicable?
+
+(d) What are some other variables, beside age, that needed to be addressed inan age discrimination analysis?
 
 # Linear Regression
 

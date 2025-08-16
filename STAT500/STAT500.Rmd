@@ -4,12 +4,13 @@ author: "Ada Lazuli"
 date: "`r Sys.Date()`"
 output:
   html_document:
-    theme: cerulean
+    theme: spacelab
     highlight: tango
     toc: true
     toc_depth: 3
     toc_float: true
     code_folding: hide
+    code-tools: true
 ---
 
 ```{r setup, include=FALSE}
@@ -342,7 +343,392 @@ Since all of the values are within the confidence band, the assumption of normal
 
 # Hypothesis Testing with One Sample
 
+## 1 Sample Proportion
+
+**Scenario:** Chronic pain is often deﬁned as pain that occurs constantly and ﬂares up frequently, is not caused by cancer, and is experienced at least once a month for a one-year period of time. Many articles have been written about the relation-ship between chronic pain and the age of the patient. In a survey conducted on behalf of the American Chronic Pain Association in 2004, a random cross section of 800 adults who suﬀer from chronic pain found that 424 of the 800 participants in the survey were above the age of 50. Using the data in the survey, is there substantial evidence ($\alpha = 0.05$
+) that more than half of persons suﬀering from chronic pain are over 50 years of age?
+
+Hypotheses:
+
+$H_0: p \leq 0.5$
+
+$H_a: p > 0.5$
+
+Assumption Verification:
+
+$n \cdot p_0 > 15$
+```{r}
+n <- 800
+p_null <- 0.5
+n * p_null > 15
+```
+
+$n \cdot (1 - p_0) > 15$
+```{r}
+n * (1 - p_null) > 15
+```
+
+Test Statistic:
+
+```{r}
+alpha <- 0.05
+p_hat <- 424/n
+se <- sqrt(p_null * (1 - p_null)/n)
+z <- p_hat - p_null/se
+z
+```
+
+Getting the rejection region:
+
+```{r}
+qnorm(1 - alpha)
+```
+
+Getting the p-value:
+
+$p\_value = P(Z >$ `r z`$) = 1 - P(Z \leq$ `r z`$) =$ `r 1 - pnorm(z)`
+
+Conclusion:
+
+Is $z^* > z_{a}$?
+
+`r z` > `r qnorm(1 - alpha)`
+
+```{r}
+z > qnorm(1 - alpha)
+```
+
+Is the p-value less than $\alpha$?
+
+`r 1 - pnorm(z)` < `r alpha`
+
+```{r}
+1 - pnorm(z) < alpha 
+```
+So, at 5% signiﬁcance level, there is suﬃcient evidence to conclude that more than half of persons suﬀering from chronic pain are over 50 years of age.
+
+## 1 Sample Mean
+
+A study was conducted of 90 adult male patients following a new treatment for congestive heart failure. One of the variables measured on the patients was the increase in exercise capacity (in minutes) over a 4-week treatment period. The previous treatment regime had produced an average increase of $\mu$= 2 minutes. 
+
+The researchers wanted to evaluate whether the new treatment had increased the value of $\mu$ in comparison to the previous treatment. The data yielded $\bar{x} = 2.17$ and $s = 1.05$. Using $\alpha=0.05$, what conclusions can you draw about the research hypothesis using rejection region approach?
+
+Hypotheses:
+
+$H_0: \mu \leq 2$
+
+$H_a: \mu > 2$
+
+Assumption Verification:
+
+Since $n > 30$, we can assume this sample follows a normal distribution.
+
+Test Statistic:
+
+```{r}
+alpha <- 0.05
+n <- 90
+x_bar <- 2.17
+s <- 1.05
+se <- s / sqrt(n)
+
+t <- (x_bar - 2)/se
+t
+```
+
+Getting the rejection region:
+
+```{r}
+qt(1 - alpha, df = n - 1) #1 - alpha since this is a right tailed test.
+```
+
+Getting the p-value:
+
+$p\_value = P(T_{89, 0.05} >$ `r t`$) = 1 - P(T_{89, 0.05} \leq$ `r t`$) =$ `r 1 - pt(t, df = n - 1)`
+
+Conclusion:
+
+Is $t^* > T_{89, 0.05}$?
+
+`r t` > `r qt(1 - alpha, df = n - 1)`
+
+```{r}
+t > qt(1 - alpha, df = n - 1)
+```
+
+Is the p-value less than $\alpha$?
+
+`r 1 - pt(t, df = n - 1)` < `r alpha`
+
+```{r}
+1 - pt(t, df = n - 1) < alpha 
+```
+ 
+ At a significance level of 5%, we can conclude that the data does not support the hypothesis that the mean has been increased from 2.
+
 # Hypothesis Testing with Two Samples
+
+## Two Proportions
+
+**Scenario:** Sludge is a dried product remaining from processed sewage and is often used as a fertilizer on agriculture crops. If the sludge contains a high concentration of certain heavy metals, such as nickel, the nickel may be at a concentration in the crops to be of danger to the consumer of the crop. A new method of processing sewage has been developed and an experiment is conducted to evaluate its effectiveness in removing heavy metals. Sewage of a known concentration of nickel is treated using both the new and old methods. 
+
+One hundred tomato plants were randomly assigned to pots containing sewage sludge processed by one of the two methods. The tomatoes harvested from the plants were evaluated to determine if the nickel was at a toxic level. The results are as follows:
+
+| Treatment&nbsp;&nbsp;       | Toxic&nbsp;&nbsp;  | Non-toxic&nbsp;&nbsp; | Total |
+|:-----------------:|:---------:|:-------------:|:---------:|
+| New             | 5     | 45        | 50    |
+| Old             | 9     | 41        | 50    |
+| *Total*         | 14    | 86        | 100   |
+
+Hypotheses:
+
+$H_0: p_1 = p_2$
+
+$H_a: p_1 - p_2 < 0$
+
+Assumption Verification:
+
+```{r}
+p_1 <- 5/50
+p_2 <- 9/50
+p_hat <- 14/100
+assumptions <- c(50*p_1 >= 5, 50*(1- p_1) >= 5, 50*p_2 >= 5, 50*(1- p_2) >= 5)
+assumptions
+```
+
+
+Test Statistic:
+
+$z^* = \frac{p_1 - p_2}{\sqrt{\hat{p} (1 - \hat{p}(\frac{1}{n_1} + \frac{1}{n_2}))}}$
+
+```{r}
+alpha <- 0.05
+
+SE <- sqrt(p_hat * (1 - p_hat) * (1/50 + 1/50))
+
+z = (p_1 - p_2)/SE
+z
+```
+
+Getting the rejection region:
+
+```{r}
+qnorm(alpha) # do not subtract 1 from alpha here since this is a left tailed test.
+```
+
+Getting the p-value:
+
+$p\_value = P(Z \leq$ `r z`$) =$ `r pnorm(z)`
+
+Conclusion:
+
+Is $z^* < z_{a}$? 
+
+(*note* the less than sign here due to this being a left tail test.)
+
+`r z` < `r qnorm(alpha)`
+
+```{r}
+z < qnorm(alpha)
+```
+
+Is the p-value less than $\alpha$?
+
+`r pnorm(z)` < `r alpha`
+
+```{r}
+pnorm(z) < alpha 
+```
+ 
+At a significance level of 5%, it seems that there is not significant evidence that the new treatment would have a lower proportion of plants having toxic levels of nickle.
+
+## Two Means
+
+According to the publication, High School Profile Report, in past years college-bound males have out-performed college-bound females on the mathematics portion of tests given by ACT Program. Samples of this year’s score yield the following data.
+
+| Group   | C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 | C9 | C10 | C11 | C12 | C13 | C14 |
+|:-------:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:---:|:---:|:---:|:---:|:---:|
+| Males   | 34 | 34 | 30 | 18 | 24 | 16 | 15 | 26 | 13 | 21  | 24  | 11  | 11  | 15  |
+| Females | 18 | 33 | 27 | 11 | 23 | 23 | 18 | 20 | 26 | 10  | 20  | 22  | 14  | 21  |
+
+
+Does it appear that college-bound males are, on the average, still outperforming college-bound females on the mathematics portion of ACT tests? Set up the hypothesis. Indicate whether you are going to use 2-sample t-test or paired t-test for the problem. If you use 2-sample t-test, will you use pooled or non-pooled variances? What conditions will you check before you perform the test?
+
+Hypotheses:
+
+$H_0: \mu_{male} - \mu_{female} \leq 0$
+
+$H_a: \mu_{male} - \mu_{female} > 0$
+
+Assumptions:
+
+Start by storing the study observations into a dataframe.
+
+```{r}
+males <- c(34,34,30,18,24,16,15,26,13,21,24,11,11,15)
+females <- c(18,33,27,11,23,23,18,20,26,10,20,22,14,21)
+df <- rbind(data.frame(values = males, group = "male"),
+            data.frame(values = females, group = "female"))
+```
+
+The first assumption to check is whether we can assume equal variances. We
+assess this with the rule of thumb: $0.5 < \frac{s_1}{s_2} <2.0$
+
+In this instance: $\frac{s_1}{s_2} =$ `r sd(males)/sd(females)`
+
+Since the ratio is within our threshold, we can proceed with pool variance.
+
+The second assumption to check is whether the two sets follow a normal 
+distribution.
+
+```{r}
+ggplot(df, aes(sample = values, color = group, fill = group)) +
+  stat_qq_band(distribution = "norm", alpha = 0.1) +
+  stat_qq_line(distribution = "norm", color = "red", alpha = .2) +
+  stat_qq_point(distribution = "norm", color = "blue") +
+  labs(title = "Normal Probability Plot (with Confidence Band)",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  facet_wrap(~group)+
+  theme_minimal()
+```
+
+Test Statistic:
+
+$t^* = \frac{\bar{x} - \bar{x}}{s_p \cdot \sqrt{\frac{1}{n_1} + \frac{1}{n_2}}}$
+
+where,
+
+$s_p = \sqrt frac{(n_1 -1)\cdot s_1^2 + (n_2 - 1 \cdot s^2_2)}{n_1 + n_2 -2}$
+
+and 
+
+$df = n_1 + n_2 -2$
+
+```{r}
+alpha <- 0.05
+df <- length(males) + length(females) - 2
+top = (length(males) - 1)*sd(males)**2 + (length(females) - 1)*sd(females)**2
+s_p = sqrt(top/df)
+
+t = (mean(males) - mean(females))/(s_p*sqrt(1/length(males)+1/length(females)))
+t
+```
+
+Getting the rejection region:
+
+```{r}
+qt(1 - alpha, df)
+```
+
+Getting the p-value:
+
+$p\_value = P(T_{26, 0.05} >$ `r t`$) =$ `r 1 - qt(t, df)`
+
+Conclusion:
+
+Is $t^* > T_{26, 0.05}$? 
+
+`r t` > `r qt(1 - alpha, df)`
+
+```{r}
+t > qt(1 - alpha, df)
+```
+
+Is the p-value less than $\alpha$?
+
+`r 1 - pt(t, df)` < `r alpha`
+
+```{r}
+1 - pt(t, df) < alpha 
+```
+ 
+At a significance level of 5%, there is not enough evidence to conclude that, on average, college-bound males score higher on the ACT Math compared to college-bound females.
+
+## Paired Means
+
+**Scenario:** Eleven tires were each measured for tread wear by two methods, one based on weight and the other on groove wear. Here is the data in thousands of miles:
+
+| Group  | C1   | C2   | C3   | C4   | C5   | C6   | C7   | C8   | C9   | C10  | C11  |
+|:------:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
+| Weight | 30.5 | 30.9 | 31.9 | 30.4 | 27.3 | 20.4 | 24.5 | 20.9 | 18.9 | 13.7 | 11.4 |
+| Groove | 28.7 | 25.9 | 23.3 | 23.1 | 23.7 | 20.9 | 16.1 | 19.9 | 15.2 | 11.5 | 11.2 |
+
+Does it appear the two methods, on the average, give different results? Set up the hypotheses. Indicate whether you are going to use 2-sample t-test or paired t-test for the problem. If you use 2-sample t-test, will you use pooled or non-pooled variances? What conditions will you check before you perform the test?
+
+Hypotheses:
+
+$H_0: \mu_d = 0$
+
+$H_a: \mu_d \neq 0$
+
+Assumptions:
+
+Verify that $d$ follows a normal distribution
+
+```{r}
+Weight <- c(30.5,30.9,31.9,30.4,27.3,20.4,24.5,20.9,18.9,13.7,11.4)
+Groove <- c(28.7,25.9,23.3,23.1,23.7,20.9,16.1,19.9,15.2,11.5,11.2)
+d = Weight - Groove
+
+ggplot(data.frame(values = d), aes(sample = values)) +
+  stat_qq_band(distribution = "norm", alpha = 0.2, fill = "lightblue") +
+  stat_qq_line(distribution = "norm", color = "red", alpha = .2) +
+  stat_qq_point(distribution = "norm", color = "blue") +
+  labs(title = "Normal Probability Plot (with Confidence Band)",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+```
+
+Test Statistic:
+
+The test statistic is given by
+
+$t^* =\frac{\bar{d}}{\frac{s_d}{\sqrt{n}}}$
+
+with the degrees of freedom being given by $df = n(pairs)  - 1$
+
+```{r}
+alpha = 0.05/2 # since this is a two tailed test.
+t = mean(d)/(sd(d)/sqrt(length(d)))
+
+df = length(d) - 1
+
+t
+```
+
+Getting the rejection region:
+
+```{r}
+qt(1 - alpha, df)
+```
+
+Getting the p-value:
+
+$p\_value = P(T_{10, 0.025} >|$ `r t`$|) =$ `r 1 - qt(t, df)`
+
+Conclusion:
+
+Is $t^* > T_{10, 0.05}$? 
+
+
+`r t` > `r qt(1 - alpha, df)`
+
+```{r}
+t > qt(1 - alpha, df)
+```
+
+Is the p-value less than $\alpha$?
+
+`r 1 - pt(t, df)` < `r alpha`
+
+```{r}
+1 - pt(t, df) < alpha 
+```
+ 
+There is statistical evidence to conclude that there is a difference in average tread wear between the weight and groove methods.
+
 
 # Chi-Square Test for Independence
 

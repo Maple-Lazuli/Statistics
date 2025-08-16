@@ -1,0 +1,351 @@
+---
+title: "STAT500"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: cerulean
+    highlight: tango
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/home/maple/CodeProjects/Statistics/STAT500")
+```
+
+```{r collapse=TRUE}
+library(dplyr)
+library(ggplot2)
+library(qqplotr)
+```
+
+# Collecting and Summarizing Data
+
+## Numerical Summarization
+
+**Scenario:** The College of Dentistry at the University of Florida has made a commitment to develop its entire curriculum around the use of self-paced instructional mate-rials such as video tapes, slide tapes, and syllabi. It is hoped that each student will proceed at a pace commensurate with his or her ability and that the instructional staﬀ will have more free time for personal consultation in student-faculty interactions. One such instructional module was developed and tested on the ﬁrst 50 students proceeding through the curriculum. The following measurements represent the number of hours it took these students to complete the required modular material.
+
+**Data:** 
+```
+16 8 33 21 34 17 12 14 27 6 33 25 16 7 15 18 25 29
+19 27 5 12 29 22 14 25 21 17 9 4 12 15 13 11 6 9 26
+5 16 5 9 11 5 4 5 23 21 10 17 15
+```
+
+```{r}
+data <- c(16,8,33,21,34,17,12,14,27,6,33,25,16,7,15,18,25,29,19,27,5,
+          12,29,22,14,25,21,17,9,4,12,15,13,11,6,9,26,5,16,5,9,11,5,4,
+          5,23,21,10,17,15)
+```
+
+To get the 5-Number summary plus the mean, use the `summary` function.
+
+```{r}
+summary(data)
+```
+
+
+The *empirical method* to get the standard deviation:
+
+```{r}
+empirical_std <- (max(data) - min(data))/4
+empirical_std
+```
+
+To use R functions for standard deviation:
+
+```{r}
+sd(data)
+```
+
+To get the **coefficient of variation (CV)**:
+
+```{r}
+cv <- sd(data)/mean(data)
+cv
+```
+
+## Visualization
+
+How to make a pie chart
+
+```{r}
+# example two feature data.
+df_pie <- data.frame(
+  category = c("A", "B", "C", "D"),
+  value = c(10, 20, 30, 40)
+)
+
+ggplot(df_pie, aes(x = "", y = value, fill = category)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  theme_void() +
+  labs(title = "Pie Chart Example")
+```
+
+
+How to make a histogram
+```{r collapse=TRUE}
+df = data.frame(values = data)
+ggplot(df, aes(x = values)) +
+  geom_histogram(fill = "skyblue", color = "black") +
+  labs(title = "Histogram Example", x = "Value", y = "Count")
+```
+
+How to make a box plot
+```{r collapse=TRUE}
+ggplot(df, aes(x = values)) +
+  geom_boxplot() +
+  labs(title = "Boxplot Example")
+```
+
+How to make a probability plot
+```{r collapse=TRUE}
+ggplot(df, aes(sample = values)) +
+  stat_qq_band(distribution = "norm", alpha = 0.2, fill = "lightblue") +
+  #stat_qq_line(distribution = "norm", color = "red") +
+  stat_qq_point(distribution = "norm", color = "blue") +
+  labs(title = "Normal Probability Plot (with Confidence Band)",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+```
+
+# Probability Distributions
+
+## Binomial Distribution
+
+**Scenario:** In an attempt to decrease drunk driving, police set up vehicle checkpoints during the July 4 evening. The police randomly select vehicles to be stopped for informational checks. On a particular roadway, assume that 20% of all drivers have a blood alcohol level above the legal limit. For a random sample of 15 vehicles, compute the following probabilities:
+
+(a) All 15 drivers will have a blood alcohol level exceeding the legal limit.
+
+```{r}
+.2**15
+```
+
+The probability of all 15 drivers having a blood alcohol level above the limit is `r 0.2**15`
+
+(b) Exactly 6 of the 15 drivers will exceed the legal limit.
+
+```{r}
+dbinom(x = 6, size = 15, prob = .2)
+```
+(c) Of the 15 drivers, more than 1 will exceed the legal limit.
+
+```{r}
+one_or_fewer <- pbinom(1, size = 15, prob = .2)
+1 - one_or_fewer
+```
+
+(d) All 15 drivers will have a blood alcohol level within the legal limit.
+```{r}
+pbinom(0, size = 15, prob = .2)
+```
+
+## Normal Distribution
+
+**Scenario:** Monthly sales ﬁgures for a particular food industry tend to be normally distributed with a mean of 150 (thousand dollars) and a standard deviation of 35 (thousand dollars). Compute the following probabilities:
+
+(a) $P(X < 200)$
+
+```{r collapse=TRUE}
+mean <- 150
+x <- 200
+sd <- 35
+z <- (x - mean)/sd
+pnorm(z)
+```
+
+(b) $P(X > 100)$
+
+```{r collapse=TRUE}
+mean <- 150
+x <- 100
+sd <- 35
+z <- (x - mean)/sd
+1 - pnorm(z)
+```
+
+(b) $P(100 < X < 200)$
+
+```{r collapse=TRUE}
+mean <- 150
+x1 <- 100
+x2 <- 200
+sd <- 35
+z1 <- (x1 - mean)/sd
+z2 <- (x2 - mean)/sd
+
+pnorm(z2) - pnorm(z1)
+```
+
+# Sampling Distributions
+
+## Sample Proportion Example
+
+**Scenario:** The company JCrew advertises that 95% of its online orders ship within two working days. You select a random sample of 200 of the 10,000 orders received over the past month to audit. The audit reveals that 180 of these orders shipped on time.
+
+(a) What is the sample proportion of orders shipped on time?
+
+```{r}
+p_hat <- 180/200
+```
+
+$\hat{p} = \frac{180}{200} =$ `r p_hat`
+
+(b) Does the sample data satisfy conditions necessary for the sample proportion to follow an approximately normal distribution?
+
+Checking the conditions:
+
+1. $n \cdot p > 15$
+2. $n \cdot (1 - p) > 15$
+
+```{r}
+200 * p_hat > 15
+```
+
+```{r}
+200 * (1 - p_hat) > 15
+```
+
+
+(c) What is the mean and standard error (SE) of the sample distribution assuming normal?
+
+```{r collapse=TRUE}
+p_null <- 0.95
+se <- sqrt(p_null * (1 - p_null)/200)
+```
+
+$SE = \sqrt{\frac{\hat{p} \cdot (1 - \hat{p})}{n}} =$ `r se``
+
+(d) If JCrew really ships 95% of its orders on time, what is probability that the proportion in a random sample of 200 orders is as small or smaller as the proportion in the audit?
+
+```{r collapse=TRUE}
+z <- (p_hat - p_null)/se
+pnorm(z)
+```
+
+$P(\hat{p} \leq 0.9) = P(Z \leq \frac{\hat{p} - p_0}{SE}) = P(Z \leq$ `r z`$) =$ `r pnorm(z)`
+
+(e) If we treated the problem as a binomial, how would the problem be set up? That is, what would we want to find the probability of?
+
+It would be a binomial with `x = 180`, `size = 200`, and `prob = 0.95`
+
+### Sample Mean Example
+
+**Scenario:** Penn State Fleet which operates and manages car rentals for Penn State employees found that the tire lifetime for their vehicles has a mean of 50,000 miles and standard deviation of 3500 miles.
+
+(a) What would be the distribution, mean and standard error mean lifetime of a random sample of 50 vehicles?
+
+Given that there are in excess of 30 samples, the sampling distribution can be assumed to be normal.
+
+It would be expected to have a mean of 50000 and standard error of $SE = \frac{\sigma}{\sqrt{n}} = $ `r 3500/sqrt(50)`
+
+(b) What is the probability that the sample mean lifetime for these 50 vehicles exceeds 52,000?
+
+```{r collapse=TRUE}
+x <- 52000
+mean <- 50000
+se <- 3500/sqrt(50)
+z <- (x - mean)/se
+1 - pnorm(z)
+```
+
+$P(\bar{x} > 52000) = 1 - P(\bar{x} \leq 52000) = 1 -  P(Z < \frac{\bar{x} - \mu}{SE}) = 1 - P(Z <$ `r z`$) =$ `r 1 - pnorm(z)`
+
+
+# Confidence Intervals
+
+## Proportions
+
+**Scenario:** A random sample of 1,200 units is randomly selected from a population. If there are 732 successes in the 1,200 draws,
+
+(a) Construct a 95% conﬁdence interval for $p$.
+
+```{r collapse=TRUE}
+p_hat = 732/1200
+alpha <- (100 - 95)/100
+alpha_2 <- alpha/2
+z_a2 <- qnorm(1 - alpha_2)
+SE <- sqrt(p_hat * (1 - p_hat)/1200)
+lower_limit <- p_hat - z_a2 * SE
+upper_limit <- p_hat + z_a2 * SE
+```
+
+$\hat{p} \pm z_{a/2}\cdot \sqrt{\frac{\hat{p}\cdot (1 - \hat{p})}{n}} =$ `r p_hat` $\pm$ `r z_a2` $\cdot$ `r SE` $\rightarrow$ (`r lower_limit`, `r upper_limit`)
+
+(b) Construct a 99% conﬁdence interval for $p$.
+
+```{r collapse=TRUE}
+p_hat = 732/1200
+alpha <- (100 - 99)/100
+alpha_2 <- alpha/2
+z_a2 <- qnorm(1 - alpha_2)
+SE <- sqrt(p_hat * (1 - p_hat)/1200)
+lower_limit <- p_hat - z_a2 * SE
+upper_limit <- p_hat + z_a2 * SE
+```
+
+$\hat{p} \pm z_{a/2}\cdot \sqrt{\frac{\hat{p}\cdot (1 - \hat{p})}{n}} =$ `r p_hat` $\pm$ `r z_a2` $\cdot$ `r SE` $\rightarrow$ (`r lower_limit`, `r upper_limit`)
+
+(c) Explain the diﬀerence in the interpretation of these two conﬁdence intervals.
+
+The intervals change due to the change in $z_{a/2}$. The interpretation difference is an increase in the confidence of where the true population proportion is.
+
+## Means
+
+**Scenario:**
+
+Consumer reports tested 15 brands of vanilla yogurt and found the following numbers of calories per serving: 160, 200, 220, 230, 120, 180, 140, 130, 170, 180, 80, 120, 100, 170, 190. The sample statistics were 159.3 for the sample mean and 43.5 for the standard deviation.
+
+(a) By hand, place a 99% confidence interval on the average number of calories per serving for vanilla yogurt.
+
+```{r collapse=TRUE}
+data <- c(160, 200, 220, 230, 120, 180, 140, 130, 170, 180, 80, 120, 100, 170, 190)
+x_bar <- mean(data)
+SE <- sd(data)/sqrt(length(data))
+
+
+alpha <- (100 - 99)/100
+alpha_2 <- alpha/2
+t_a2 <- qt(1 - alpha_2, df = length(data) - 1)
+lower_limit <- x_bar - t_a2 * SE
+upper_limit <- x_bar + t_a2 * SE
+```
+
+$\bar{x} \pm t_{a/2}\cdot \frac{s}{\sqrt{n}}$ `r x_bar` $\pm$ `r t_a2` $\cdot$ `r SE` $\rightarrow$ (`r lower_limit`, `r upper_limit`)
+
+
+(b) Provide an interpretation of your interval.
+
+The researchers are 99% confident that the mean calories in vanilla yogurt is from 125.87
+to 192.73
+
+(c) Use R check the assumption of normality. Is the assumption satisfied? Explain.
+
+```{r collapse=TRUE}
+ggplot(data.frame(values = data), aes(sample = values)) +
+  stat_qq_band(distribution = "norm", alpha = 0.2, fill = "lightblue") +
+  stat_qq_line(distribution = "norm", color = "red", alpha = .2) +
+  stat_qq_point(distribution = "norm", color = "blue") +
+  labs(title = "Normal Probability Plot (with Confidence Band)",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+```
+
+Since all of the values are within the confidence band, the assumption of normality is met.
+
+# Hypothesis Testing with One Sample
+
+# Hypothesis Testing with Two Samples
+
+# Chi-Square Test for Independence
+
+# Linear Regression
+
+# Analysis of Variance

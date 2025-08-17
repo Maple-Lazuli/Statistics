@@ -23,6 +23,8 @@ library(dplyr)
 library(ggplot2)
 library(qqplotr)
 library(tidyr)
+library(reactable)
+library(openxlsx)
 ```
 
 # Collecting and Summarizing Data
@@ -763,35 +765,392 @@ $H_a:$ Age and promotion is dependent
 
 Getting the test statistic:
 
-$\chi^{2*} = \sum{\frac{(O_i - E_i)^2}{E_i}$
+$\chi^{2*} = \sum{\frac{(O_i - E_i)^2}{E_i}}$
 
 ```{r}
-df_chi <- df
+alpha <- 0.05/2
+degrees <- (nrow(df) - 1) * (ncol(df) - 1 )
+degrees <- 3
+df$expected_value <- 0
+df$chi_sq <- 0
+
 for (i in 1:nrow(df)){
   decision_type <- df[i,]$decision
   age_type <- df[i,]$age
   # sum along each row and column :)
   expected <- sum(df[df$age == age_type,]$n) * sum(df[df$decision == decision_type,]$n)
   expected <- expected/sum(df$n)
-  df_chi[i,]$n <- ((df[i,]$n - expected)**2)/expected
+  df[i,]$expected_value <- expected
+  df[i,]$chi_sq <- ((df[i,]$n - expected)**2)/expected
 }
-chi_sq <- sum(df_chi$n)
-chi_sq
+chi_sq <- sum(df$chi_sq)
 ```
 
+$\chi^{2*} =$ `r chi_sq`
+
+```{r}
+reactable(df,
+          searchable = TRUE,
+          sortable = TRUE,
+          defaultPageSize = 5,
+          bordered = TRUE,
+          highlight = TRUE)
+df <- 10
+```
 
 Getting the rejection region:
 
+The rejection region is: $\chi^{2}_{a/2} =$ `r qchisq(alpha, degrees)` 
+
+with degrees of freedom: `r degrees`
+
+Getting the p-value:
+
+$p\_value = P(\chi^{2}_{3, 0.025}> |$ `r chi_sq`$|) =$ `r 1 - pchisq(chi_sq, degrees)`
+
+Conclusion:
+
+Is $\chi^{2*} > \chi^{2}_{3, 0.025}$? 
+
+`r chi_sq` > `r qchisq(alpha, degrees)`
+
 ```{r}
-alpha = 0.05/2
-df = (nrow(df) - 1) * (ncol(df) - 1 )
-qchisq(alpha, df)
+chi_sq > qchisq(alpha, degrees)
 ```
+
+Is the p-value less than $\alpha$?
+
+`r 1 - pchisq(chi_sq, degrees)` < `r alpha`
+
+```{r}
+1 - pchisq(chi_sq, degrees) < alpha 
+```
+ 
+There is statistical evidence to conclude that there is a difference in average tread wear between the weight and groove methods.
 
 (c) What is the population to which your conclusion in part (b) is applicable?
 
-(d) What are some other variables, beside age, that needed to be addressed inan age discrimination analysis?
+All the employees at the fire department in that city, at the time of sampling.
+
+(d) What are some other variables, beside age, that needed to be addressed in an age discrimination analysis?
+
+Answers may vary. Examples include performance metrics, number of fires in the area (to determine need), city size, credentials, position (whether there is potential for promotion), etc..
 
 # Linear Regression
 
+## Confidence Interval Example
+
+**Scenario:** The following data are 11 randomly selected people’s maximum heart rate (Y) and their age (X)
+
+| Age | 30  | 38  | 41  | 38  | 29  | 39  | 46  | 41  | 42  | 24  | 49  |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Rate| 186 | 183 | 171 | 177 | 191 | 177 | 174 | 176 | 171 | 196 | 168 |
+
+
+
+a)  Plot the data. Does a linear equation relating Y to X appear plausible?
+
+```{r}
+Age <- c(30 ,38 ,41 ,38 ,29  ,39,46 ,41 ,42  ,24,49)
+Rate <- c(186,183,171,177,191,177,174,176,171,196,168)
+df <- data.frame(age = Age, rate = Rate)
+ggplot(df, aes(x = age, y = rate)) + geom_point()
+```
+
+
+b)  What is the regression equation?
+```{r}
+model <- lm(Rate ~ Age, data = df)
+
+fits <- fitted(model)
+resids <- resid(model)
+df$Fits <- fits
+df$Residuals <- resids
+
+summary(model)
+```
+
+The equation is: $y = -1.1230x + 221.6634$
+
+c)  Interpret the coefficient of X in the context of this problem.
+
+The coefficient of X is the coefficient of age, which is –1.123. The coefficient is the slope of the regression equation which means: for every one year increase in age, the estimated increase in maximum heart rate is: -1.123 (equivalently, the estimated decrease in maximum heart rate is 1.123.)
+
+d)  Locate the residual standard deviation.
+
+It is on the line:
+
+`## Residual standard error: 3.009 on 9 degrees of freedom`
+
+The residual standard deviation is 3.
+
+e)  Will you use the regression equation to predict the maximum heart rate of a person who is 4 years old? If so, what is the value?
+
+No, because age = 4 is out of scope of the X-values in the data that are used to obtain the regression equation. It would be inappropriate to extrapolate the maximum heart rate using the regression equation for a person who is 4 years old.
+
+f)  Calculate a 95% confidence interval for the true slope.
+
+The equation for the confidence interval is:
+
+$\hat{\beta}_1 \pm t_{a/2}\cdot \hat{SE}(\hat{\beta}_1) = -1.1230 \pm$ `r qt(1-0.025, 9)` $\cdot 0.1271 \rightarrow$ (`r -1.1230 - qt(1-0.025, 9)*0.1271`, `r -1.1230 + qt(1-0.025, 9)*0.1271`) 
+
+
+g)  Find a 95% interval for the mean rate when age is 35 and a 95% interval for the rate when age is 35.
+
+```{r}
+# Fit the model
+model <- lm(Rate ~ Age, data = df)
+
+# New data for age = 35
+new_data <- data.frame(Age = 35)
+
+# 95% confidence interval for the mean Rate
+conf_int <- predict(model, newdata = new_data, 
+                    interval = "confidence", level = 0.95)
+
+# 95% prediction interval for an individual Rate
+pred_int <- predict(model, newdata = new_data, 
+                    interval = "prediction", level = 0.95)
+```
+
+The *confidence interval* is: (`r conf_int[1, "lwr"]`, `r conf_int[1, "upr"]`)
+
+The *prediction interval* is: (`r pred_int[1, "lwr"]`, `r pred_int[1, "upr"]`) 
+
+h)  Compute R2 and give an interpretation for it.
+
+The $R^2$ term comes from the line:`## Multiple R-squared:  0.8967`
+
+It means that the linear regression model using age as the predictor can explain 89.67% of the variability in maximum heart rate. 
+
+## Hypothesis Testing
+
+**Scenario:** Athletes are constantly seeking measures of the degree of their cardiovascular fitness prior to a major race. Athletes want to know when their training is at a level that will produce a peak performance. One such measure of fitness is the time to exhaustion from running on a treadmill at a specified angle and speed. The important question is then, Does this measure of cardiovascular fitness translate into performance in a 10-km running race? Twenty experienced distance runners who professed to be in top condition were evaluated on the treadmill and then had their times recorded in a 10-km race. The data, in minutes, were as follows:
+
+| Treadmill | 7.5 | 7.8 | 7.9 | 8.1 | 8.3 | 8.7 | 8.9 | 9.2 | 9.4 | 9.8 | 10.1 | 10.3 | 10.5 | 10.7 | 10.8 | 10.9 | 11.2 | 11.5 | 11.7 | 11.8 |
+|:---------:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
+| TenK      | 43.5| 45.2| 44.9| 41.1| 43.8| 44.4| 38.7| 43.1| 41.8| 43.7| 39.5 | 38.2 | 43.9 | 37.1 | 37.7 | 39.2 | 35.7 | 37.2 | 34.8 | 38.5 |
+
+
+a) Create a scatterplot of the data. Does there appear to be a linear relation-ship?
+
+```{r}
+Treadmill <- c(7.5,7.8,7.9,8.1,8.3,8.7,8.9,9.2,9.4,9.8,10.1,10.3,10.5,10.7,10.8,10.9,11.2,11.5,11.7,11.8)
+TenK <- c(43.5,45.2,44.9,41.1,43.8,44.4,38.7,43.1,41.8,43.7,39.5,38.2,43.9,37.1,37.7,39.2,35.7,37.2,34.8,38.5)
+df <- data.frame(Treadmill = Treadmill, TenK = TenK)
+ggplot(df, aes(x = Treadmill, y = TenK)) + geom_point()
+```
+
+b) Use software to find the best fit regression equation and write that equation below.
+
+```{r}
+model <- lm(TenK ~ Treadmill, data = df)
+
+fits <- fitted(model)
+resids <- resid(model)
+df$Fits <- fits
+df$Residuals <- resids
+
+summary(model)
+```
+
+The equation is: $y = 58.8158 + -1.8673x$
+
+c) What is the interpretation of the slope of this line as it relates to this problem?
+
+For an increase in treadmill time of one minute, the estimated average 10-km race time decreases by 1.867 minutes.
+
+d) Using the regression equation in Part b, what is the predicted 10-km race time of a runner with a treadmill time of 10 minutes? Provide an interpretation of this prediction.
+
+With a treadmill time of 10 minutes, the prediction is: `r 58.8158 + -1.8673 * 10`
+
+e) Using the regression output, find a 95% confidence interval for the slope of the regression line and provide an interpretation of this interval.
+
+$\hat{\beta}_1 \pm t_{a/2}\cdot \hat{SE}(\hat{\beta}_1) = -1.8673 \pm$ `r qt(1-0.025, 18)` $\cdot 0.3462 \rightarrow$ (`r -1.8673 - qt(1-0.025, 18)*0.3462`, `r -1.8673 + qt(1-0.025, 18)*0.3462`) 
+
+f) Conduct a test of significance for the slope at a 5% level of significance.Be sure to include your hypotheses, p-value, decision, and conclusion.
+
+Hypothesis:
+
+$H_0: \beta_1 \geq 0$
+
+$H_a: \beta_1 < 0$
+
+Assumptions:
+
+**Linearity**: The first assumption to check is whether there appears to be a linear relationship between X and Y.
+```{r}
+ggplot(df, aes(x = Treadmill, y = TenK)) + geom_point() + geom_smooth(method = "lm", se = FALSE, color = "red")
+```
+
+**Independence of Errors**: The second assumption requires that there is not a relationship between residuals and weight.
+
+```{r}
+ggplot(df, aes(x = Fits, y = Residuals)) + geom_point() + 
+         geom_smooth(method = "lm", se = FALSE, color = "red") +
+         geom_hline(yintercept = 0, color = "grey", linetype = "dashed")
+```
+
+**Normality of Error**: The residuals must approximately normally distributed.
+
+```{r}
+ggplot(df, aes(sample = Residuals)) +
+  stat_qq_band(distribution = "norm", alpha = 0.2, fill = "lightblue") +
+  stat_qq_line(distribution = "norm", color = "red", alpha = .2) +
+  stat_qq_point(distribution = "norm", color = "blue") +
+  labs(title = "Normal Probability Plot of Residuals (with Confidence Band)",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+```
+
+**Equal Variances**: The variance of the residuals is the same for all values of $X$.
+```{r}
+ggplot(df, aes(x = Fits, y = Residuals)) + geom_point() + 
+         geom_smooth(method = "lm", se = FALSE, color = "red") +
+         geom_hline(yintercept = 0, color = "grey", linetype = "dashed")
+```
+
+Test Statistic:
+
+The test statistic is given by:
+
+$t^* = \frac{\hat{\beta}_1}{\hat{SE}(\hat{\beta}_1)} = \frac{-1.8673}{0.3462} =$ `r -1.8673/0.3462`
+
+Rejection Region:
+```{r}
+t <-  -1.8673/0.3462
+degrees <- nrow(df) - 2
+degrees <- 18
+
+alpha = 0.05
+qt(alpha, degrees)
+```
+
+Getting the p-value:
+
+$p\_value = P(T_{18, 0.05} >|$ `r t`$|) =$ `r pt(t, degrees)`
+
+Conclusion:
+
+Is $t^* < T_{18, 0.05}$? 
+
+
+`r t` < `r qt(alpha, degrees)`
+
+```{r}
+t < qt(alpha, degrees)
+```
+
+Is the p-value less than $\alpha$?
+
+`r pt(t, degrees)` < `r alpha`
+
+```{r}
+pt(t, degrees) < alpha 
+```
+ 
+We reject the null hypothesis and conclude that treadmill time is a significant linear predictor of 10-km race time for top conditioned runners.
+
+g) From the output, what is the estimate standard deviation of the model(i.e.σ)?
+
+We get the estimated standard deviation of the model from the line: `## Residual standard error: 2.102 on 18 degrees of freedom`
+
+which is the square root of the estimated model variance, MSE. For this data, the estimated model standard deviation is 2.102
+
+h) What is the coefficient of determination and how is it interpreted for this study?
+
+This is given in the output as ’R-sq’ which is 61.77%. This means that about 61.77% of the variation in 10-km race time for top conditioned runners is explained by treadmill time (or explained by the regression model).
+
+i) What is the correlation between 10-km and treadmill times?
+
+ The correlation is found by taking the square root of the R-sq as a pro-portion with the sign of the correlation taken by the direction of the slope in the regression line. Here, the correlation would be the square root of 0.6177 and be negative. The correlation is then,  -0.786.
+
 # Analysis of Variance
+
+To compare the heights of Soprano, Alto, Tenor and Bass singers, data have been collected from the NY Choral Society in 1979.
+
+Determine whether these four groups have the same mean height. Use $\alpha = 0.05$
+
+Hypotheses:
+
+$H_0: \forall_{i, j \in \{ A,A,T,B\}, i \neq j} \mu_i = \mu_j$
+
+
+$H_a: \forall_{i, j \in \{ A,A,T,B\}, i \neq j} \mu_i \neq \mu_j$
+
+
+Data Loading:
+
+```{r}
+df <- read.xlsx("../Sample_Data/singers-1 (1).xlsx", sheet = 1)
+reactable(df,
+          searchable = TRUE,
+          sortable = TRUE,
+          defaultPageSize = 5,
+          bordered = TRUE,
+          highlight = TRUE)
+```
+
+Data Modeling:
+
+We have to pivot the data to a longer format.
+
+```{r}
+df_long <- df %>% pivot_longer(cols = everything(), names_to = "Group", values_to = "Value")
+reactable(df_long,
+          searchable = TRUE,
+          sortable = TRUE,
+          defaultPageSize = 5,
+          bordered = TRUE,
+          highlight = TRUE)
+model <- aov(Value ~ Group, data = df_long)
+anova_summary <- summary(model)
+f_value <- anova_summary[[1]][["F value"]][1]
+anova_summary
+```
+
+Getting the additional output that minitab creates.
+```{r}
+#aggregate(Value ~ Group, data = df_long, mean)
+#df_long$Fits<- model$fitted.values   # fitted means
+#df_long$Residuals<- model$residuals       # residuals
+TukeyHSD(model)
+```
+
+The test statistic is the F-value of `r f_value`
+
+Rejection Region:
+```{r}
+alpha = 0.05/2
+# from the summary
+df1 <- 3 # group degrees of freedom
+df2 <- 126 # error degrees of freedom
+
+qf(alpha, df1 = df1, df2 = df2)
+```
+
+Getting the p-value:
+
+$p\_value = P(F_{3,126, 0.025} >|$ `r f_value`$|) =$ `r 1 - pf(f_value, df1 =df1, df2 = df2)`
+
+Conclusion:
+
+Is $f^* < F_{3,126, 0.025} $? 
+
+
+`r f_value` > `r qf(alpha, df1 = df1, df2 = df2)`
+
+```{r}
+f_value < qf(alpha, df1 = df1, df2 = df2)
+```
+
+Is the p-value less than $\alpha$?
+
+`r 1 - pf(f_value, df1 =df1, df2 = df2)` < `r alpha`
+
+```{r}
+1 - pf(f_value, df1 =df1, df2 = df2) < alpha 
+```
+
+We would conclude that the sample data provides statistical evidence that there is a difference in the mean heights across the four types of singers

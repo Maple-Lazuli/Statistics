@@ -11,6 +11,12 @@ output:
     toc_float: true
     code_folding: hide
     code-tools: true
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  word_document:
+    toc: true
+    toc_depth: '3'
 ---
 
 ```{r setup, include=FALSE}
@@ -377,7 +383,7 @@ Test Statistic:
 alpha <- 0.05
 p_hat <- 424/n
 se <- sqrt(p_null * (1 - p_null)/n)
-z <- p_hat - p_null/se
+z <- (p_hat - p_null)/se
 z
 ```
 
@@ -709,7 +715,7 @@ qt(1 - alpha, df)
 
 Getting the p-value:
 
-$p\_value = P(T_{10, 0.025} >|$ `r t`$|) =$ `r 1 - pt(t, df)`
+$p\_value = P(T_{10, 0.025} >|$ `r t`$|) =$ `r 2*(1 - pt(t, df))`
 
 Conclusion:
 
@@ -722,12 +728,12 @@ Is $t^* > T_{10, 0.05}$?
 t > qt(1 - alpha, df)
 ```
 
-Is the p-value less than $\alpha$?
+Is the p-value less than $\alpha*2$?
 
-`r 1 - pt(t, df)` < `r alpha`
+`r 2*(1 - pt(t, df))` < `r alpha*2`
 
 ```{r}
-1 - pt(t, df) < alpha 
+2*(1 - pt(t, df)) < alpha *2
 ```
  
 There is statistical evidence to conclude that there is a difference in average tread wear between the weight and groove methods.
@@ -789,12 +795,7 @@ chi_sq <- sum(df$chi_sq)
 $\chi^{2*} =$ `r chi_sq`
 
 ```{r}
-reactable(df,
-          searchable = TRUE,
-          sortable = TRUE,
-          defaultPageSize = 5,
-          bordered = TRUE,
-          highlight = TRUE)
+reactable(df,searchable = TRUE,sortable = TRUE,defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
 df <- 10
 ```
 
@@ -1077,19 +1078,14 @@ Hypotheses:
 $H_0: \forall_{i, j \in \{ A,A,T,B\}, i \neq j} \mu_i = \mu_j$
 
 
-$H_a: \forall_{i, j \in \{ A,A,T,B\}, i \neq j} \mu_i \neq \mu_j$
+$H_a: \exists_{i, j \in \{ A,A,T,B\}, i \neq j} \mu_i \neq \mu_j$
 
 
 Data Loading:
 
 ```{r}
 df <- read.xlsx("../Sample_Data/singers-1 (1).xlsx", sheet = 1)
-reactable(df,
-          searchable = TRUE,
-          sortable = TRUE,
-          defaultPageSize = 5,
-          bordered = TRUE,
-          highlight = TRUE)
+reactable(df,searchable = TRUE,sortable = TRUE,defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
 ```
 
 Data Modeling:
@@ -1098,12 +1094,7 @@ We have to pivot the data to a longer format.
 
 ```{r}
 df_long <- df %>% pivot_longer(cols = everything(), names_to = "Group", values_to = "Value")
-reactable(df_long,
-          searchable = TRUE,
-          sortable = TRUE,
-          defaultPageSize = 5,
-          bordered = TRUE,
-          highlight = TRUE)
+reactable(df_long,searchable = TRUE,sortable = TRUE,defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
 model <- aov(Value ~ Group, data = df_long)
 anova_summary <- summary(model)
 f_value <- anova_summary[[1]][["F value"]][1]
@@ -1132,25 +1123,25 @@ qf(alpha, df1 = df1, df2 = df2)
 
 Getting the p-value:
 
-$p\_value = P(F_{3,126, 0.025} >|$ `r f_value`$|) =$ `r 1 - pf(f_value, df1 =df1, df2 = df2)`
+$p\_value = P(F_{3,126, 0.025} >|$ `r f_value`$|) =$ `r 2*(1 - pf(f_value, df1 =df1, df2 = df2))`
 
 Conclusion:
 
-Is $f^* < F_{3,126, 0.025} $? 
+Is $f^* > F_{3,126, 0.025} $? 
 
 
-`r f_value` > `r qf(alpha, df1 = df1, df2 = df2)`
+`r f_value` > `r qf(1 - alpha, df1 = df1, df2 = df2)`
 
 ```{r}
-f_value < qf(alpha, df1 = df1, df2 = df2)
+f_value > qf(1 - alpha, df1 = df1, df2 = df2)
 ```
 
 Is the p-value less than $\alpha$?
 
-`r 1 - pf(f_value, df1 =df1, df2 = df2)` < `r alpha`
+`r 2*(1 - pf(f_value, df1 =df1, df2 = df2))` < `r alpha`
 
 ```{r}
-1 - pf(f_value, df1 =df1, df2 = df2) < alpha 
+2*(1 - pf(f_value, df1 =df1, df2 = df2)) < alpha 
 ```
 
 We would conclude that the sample data provides statistical evidence that there is a difference in the mean heights across the four types of singers

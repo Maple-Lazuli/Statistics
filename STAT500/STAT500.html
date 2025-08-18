@@ -3268,25 +3268,25 @@ persons suﬀering from chronic pain are over 50 years of age?</p>
 <div class="sourceCode" id="cb43"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" tabindex="-1"></a>alpha <span class="ot">&lt;-</span> <span class="fl">0.05</span></span>
 <span id="cb43-2"><a href="#cb43-2" tabindex="-1"></a>p_hat <span class="ot">&lt;-</span> <span class="dv">424</span><span class="sc">/</span>n</span>
 <span id="cb43-3"><a href="#cb43-3" tabindex="-1"></a>se <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(p_null <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> p_null)<span class="sc">/</span>n)</span>
-<span id="cb43-4"><a href="#cb43-4" tabindex="-1"></a>z <span class="ot">&lt;-</span> p_hat <span class="sc">-</span> p_null<span class="sc">/</span>se</span>
+<span id="cb43-4"><a href="#cb43-4" tabindex="-1"></a>z <span class="ot">&lt;-</span> (p_hat <span class="sc">-</span> p_null)<span class="sc">/</span>se</span>
 <span id="cb43-5"><a href="#cb43-5" tabindex="-1"></a>z</span></code></pre></div>
-<pre><code>## [1] -27.75427</code></pre>
+<pre><code>## [1] 1.697056</code></pre>
 <p>Getting the rejection region:</p>
 <div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" tabindex="-1"></a><span class="fu">qnorm</span>(<span class="dv">1</span> <span class="sc">-</span> alpha)</span></code></pre></div>
 <pre><code>## [1] 1.644854</code></pre>
 <p>Getting the p-value:</p>
 <p><span class="math inline">\(p\_value = P(Z &gt;\)</span>
--27.7542712<span class="math inline">\() = 1 - P(Z \leq\)</span>
--27.7542712<span class="math inline">\() =\)</span> 1</p>
+1.6970563<span class="math inline">\() = 1 - P(Z \leq\)</span>
+1.6970563<span class="math inline">\() =\)</span> 0.044843</p>
 <p>Conclusion:</p>
 <p>Is <span class="math inline">\(z^* &gt; z_{a}\)</span>?</p>
-<p>-27.7542712 &gt; 1.6448536</p>
+<p>1.6970563 &gt; 1.6448536</p>
 <div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" tabindex="-1"></a>z <span class="sc">&gt;</span> <span class="fu">qnorm</span>(<span class="dv">1</span> <span class="sc">-</span> alpha)</span></code></pre></div>
-<pre><code>## [1] FALSE</code></pre>
+<pre><code>## [1] TRUE</code></pre>
 <p>Is the p-value less than <span class="math inline">\(\alpha\)</span>?</p>
-<p>1 &lt; 0.05</p>
+<p>0.044843 &lt; 0.05</p>
 <div class="sourceCode" id="cb49"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" tabindex="-1"></a><span class="dv">1</span> <span class="sc">-</span> <span class="fu">pnorm</span>(z) <span class="sc">&lt;</span> alpha </span></code></pre></div>
-<pre><code>## [1] FALSE</code></pre>
+<pre><code>## [1] TRUE</code></pre>
 <p>So, at 5% signiﬁcance level, there is suﬃcient evidence to conclude
 that more than half of persons suﬀering from chronic pain are over 50
 years of age.</p>
@@ -3691,15 +3691,15 @@ distribution</p>
 <pre><code>## [1] 2.228139</code></pre>
 <p>Getting the p-value:</p>
 <p><span class="math inline">\(p\_value = P(T_{10, 0.025} &gt;|\)</span>
-3.8656587<span class="math inline">\(|) =\)</span> 0.0015656</p>
+3.8656587<span class="math inline">\(|) =\)</span> 0.0031312</p>
 <p>Conclusion:</p>
 <p>Is <span class="math inline">\(t^* &gt; T_{10, 0.05}\)</span>?</p>
 <p>3.8656587 &gt; 2.2281389</p>
 <div class="sourceCode" id="cb84"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb84-1"><a href="#cb84-1" tabindex="-1"></a>t <span class="sc">&gt;</span> <span class="fu">qt</span>(<span class="dv">1</span> <span class="sc">-</span> alpha, df)</span></code></pre></div>
 <pre><code>## [1] TRUE</code></pre>
-<p>Is the p-value less than <span class="math inline">\(\alpha\)</span>?</p>
-<p>0.0015656 &lt; 0.025</p>
-<div class="sourceCode" id="cb86"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" tabindex="-1"></a><span class="dv">1</span> <span class="sc">-</span> <span class="fu">pt</span>(t, df) <span class="sc">&lt;</span> alpha </span></code></pre></div>
+<p>Is the p-value less than <span class="math inline">\(\alpha*2\)</span>?</p>
+<p>0.0031312 &lt; 0.05</p>
+<div class="sourceCode" id="cb86"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" tabindex="-1"></a><span class="dv">2</span><span class="sc">*</span>(<span class="dv">1</span> <span class="sc">-</span> <span class="fu">pt</span>(t, df)) <span class="sc">&lt;</span> alpha <span class="sc">*</span><span class="dv">2</span></span></code></pre></div>
 <pre><code>## [1] TRUE</code></pre>
 <p>There is statistical evidence to conclude that there is a difference
 in average tread wear between the weight and groove methods.</p>
@@ -3776,14 +3776,9 @@ E_i)^2}{E_i}}\)</span></p>
 <span id="cb90-15"><a href="#cb90-15" tabindex="-1"></a>}</span>
 <span id="cb90-16"><a href="#cb90-16" tabindex="-1"></a>chi_sq <span class="ot">&lt;-</span> <span class="fu">sum</span>(df<span class="sc">$</span>chi_sq)</span></code></pre></div>
 <p><span class="math inline">\(\chi^{2*} =\)</span> 12.7956275</p>
-<div class="sourceCode" id="cb91"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb91-1"><a href="#cb91-1" tabindex="-1"></a><span class="fu">reactable</span>(df,</span>
-<span id="cb91-2"><a href="#cb91-2" tabindex="-1"></a>          <span class="at">searchable =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb91-3"><a href="#cb91-3" tabindex="-1"></a>          <span class="at">sortable =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb91-4"><a href="#cb91-4" tabindex="-1"></a>          <span class="at">defaultPageSize =</span> <span class="dv">5</span>,</span>
-<span id="cb91-5"><a href="#cb91-5" tabindex="-1"></a>          <span class="at">bordered =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb91-6"><a href="#cb91-6" tabindex="-1"></a>          <span class="at">highlight =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
-<div id="htmlwidget-00e54dd343c5d57808c9" class="reactable html-widget" style="width:auto;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-00e54dd343c5d57808c9">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"n":[9,41,29,39,34,46,12,38],"decision":["Promoted","Not Promoted","Promoted","Not Promoted","Promoted","Not Promoted","Promoted","Not Promoted"],"age":["Under 30","Under 30","30-39","30-39","40-49","40-49","50 or Older","50 or Older"],"expected_value":[16.9354838709677,33.0645161290323,23.0322580645161,44.9677419354839,27.0967741935484,52.9032258064516,16.9354838709677,33.0645161290323],"chi_sq":[3.71834101382488,1.90451612903226,1.54626366675703,0.791988707363355,1.75867895545315,0.90078678206137,1.43834101382488,0.736711250983478]},"columns":[{"id":"n","name":"n","type":"numeric"},{"id":"decision","name":"decision","type":"character"},{"id":"age","name":"age","type":"character"},{"id":"expected_value","name":"expected_value","type":"numeric"},{"id":"chi_sq","name":"chi_sq","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"45d375fa77477ca7416c579c68db5b87"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+<div class="sourceCode" id="cb91"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb91-1"><a href="#cb91-1" tabindex="-1"></a><span class="fu">reactable</span>(df,<span class="at">searchable =</span> <span class="cn">TRUE</span>,<span class="at">sortable =</span> <span class="cn">TRUE</span>,<span class="at">defaultPageSize =</span> <span class="dv">5</span>, <span class="at">bordered =</span> <span class="cn">TRUE</span>, <span class="at">highlight =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
+<div id="htmlwidget-08c9ec5094da0450f040" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-08c9ec5094da0450f040">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"n":[9,41,29,39,34,46,12,38],"decision":["Promoted","Not Promoted","Promoted","Not Promoted","Promoted","Not Promoted","Promoted","Not Promoted"],"age":["Under 30","Under 30","30-39","30-39","40-49","40-49","50 or Older","50 or Older"],"expected_value":[16.9354838709677,33.0645161290323,23.0322580645161,44.9677419354839,27.0967741935484,52.9032258064516,16.9354838709677,33.0645161290323],"chi_sq":[3.71834101382488,1.90451612903226,1.54626366675703,0.791988707363355,1.75867895545315,0.90078678206137,1.43834101382488,0.736711250983478]},"columns":[{"id":"n","name":"n","type":"numeric"},{"id":"decision","name":"decision","type":"character"},{"id":"age","name":"age","type":"character"},{"id":"expected_value","name":"expected_value","type":"numeric"},{"id":"chi_sq","name":"chi_sq","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"45d375fa77477ca7416c579c68db5b87"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
 <div class="sourceCode" id="cb92"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb92-1"><a href="#cb92-1" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="dv">10</span></span></code></pre></div>
 <p>Getting the rejection region:</p>
 <p>The rejection region is: <span class="math inline">\(\chi^{2}_{a/2}
@@ -4220,29 +4215,19 @@ have been collected from the NY Choral Society in 1979.</p>
 <p>Hypotheses:</p>
 <p><span class="math inline">\(H_0: \forall_{i, j \in \{ A,A,T,B\}, i
 \neq j} \mu_i = \mu_j\)</span></p>
-<p><span class="math inline">\(H_a: \forall_{i, j \in \{ A,A,T,B\}, i
+<p><span class="math inline">\(H_a: \exists_{i, j \in \{ A,A,T,B\}, i
 \neq j} \mu_i \neq \mu_j\)</span></p>
 <p>Data Loading:</p>
 <div class="sourceCode" id="cb117"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb117-1"><a href="#cb117-1" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">read.xlsx</span>(<span class="st">&quot;../Sample_Data/singers-1 (1).xlsx&quot;</span>, <span class="at">sheet =</span> <span class="dv">1</span>)</span>
-<span id="cb117-2"><a href="#cb117-2" tabindex="-1"></a><span class="fu">reactable</span>(df,</span>
-<span id="cb117-3"><a href="#cb117-3" tabindex="-1"></a>          <span class="at">searchable =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb117-4"><a href="#cb117-4" tabindex="-1"></a>          <span class="at">sortable =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb117-5"><a href="#cb117-5" tabindex="-1"></a>          <span class="at">defaultPageSize =</span> <span class="dv">5</span>,</span>
-<span id="cb117-6"><a href="#cb117-6" tabindex="-1"></a>          <span class="at">bordered =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb117-7"><a href="#cb117-7" tabindex="-1"></a>          <span class="at">highlight =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
-<div id="htmlwidget-985bec9db47706d6f296" class="reactable html-widget" style="width:auto;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-985bec9db47706d6f296">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"Soprano":[64,62,66,65,60,61,65,66,65,63,67,65,62,65,68,65,63,65,62,65,66,62,65,63,65,66,65,62,65,66,65,61,65,66,65,62,"NA","NA","NA"],"Alto":[65,62,68,67,67,63,67,66,63,72,62,61,66,64,60,61,66,66,66,62,70,65,64,63,65,69,61,66,65,61,63,64,67,66,68,"NA","NA","NA","NA"],"Tenor":[69,72,71,66,76,74,71,66,68,67,70,65,72,70,68,73,66,68,67,64,"NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA"],"Bass":[72,70,72,69,73,71,72,68,68,71,66,68,71,73,73,70,68,70,75,68,71,70,74,70,75,75,69,72,71,70,71,68,70,75,72,66,72,70,69]},"columns":[{"id":"Soprano","name":"Soprano","type":"numeric"},{"id":"Alto","name":"Alto","type":"numeric"},{"id":"Tenor","name":"Tenor","type":"numeric"},{"id":"Bass","name":"Bass","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"ed58b11587aa822897991b8af80bd803"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+<span id="cb117-2"><a href="#cb117-2" tabindex="-1"></a><span class="fu">reactable</span>(df,<span class="at">searchable =</span> <span class="cn">TRUE</span>,<span class="at">sortable =</span> <span class="cn">TRUE</span>,<span class="at">defaultPageSize =</span> <span class="dv">5</span>, <span class="at">bordered =</span> <span class="cn">TRUE</span>, <span class="at">highlight =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
+<div id="htmlwidget-e970e1347a8d9965abf4" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-e970e1347a8d9965abf4">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"Soprano":[64,62,66,65,60,61,65,66,65,63,67,65,62,65,68,65,63,65,62,65,66,62,65,63,65,66,65,62,65,66,65,61,65,66,65,62,"NA","NA","NA"],"Alto":[65,62,68,67,67,63,67,66,63,72,62,61,66,64,60,61,66,66,66,62,70,65,64,63,65,69,61,66,65,61,63,64,67,66,68,"NA","NA","NA","NA"],"Tenor":[69,72,71,66,76,74,71,66,68,67,70,65,72,70,68,73,66,68,67,64,"NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA"],"Bass":[72,70,72,69,73,71,72,68,68,71,66,68,71,73,73,70,68,70,75,68,71,70,74,70,75,75,69,72,71,70,71,68,70,75,72,66,72,70,69]},"columns":[{"id":"Soprano","name":"Soprano","type":"numeric"},{"id":"Alto","name":"Alto","type":"numeric"},{"id":"Tenor","name":"Tenor","type":"numeric"},{"id":"Bass","name":"Bass","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"ed58b11587aa822897991b8af80bd803"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
 <p>Data Modeling:</p>
 <p>We have to pivot the data to a longer format.</p>
 <div class="sourceCode" id="cb118"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb118-1"><a href="#cb118-1" tabindex="-1"></a>df_long <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span> <span class="fu">pivot_longer</span>(<span class="at">cols =</span> <span class="fu">everything</span>(), <span class="at">names_to =</span> <span class="st">&quot;Group&quot;</span>, <span class="at">values_to =</span> <span class="st">&quot;Value&quot;</span>)</span>
-<span id="cb118-2"><a href="#cb118-2" tabindex="-1"></a><span class="fu">reactable</span>(df_long,</span>
-<span id="cb118-3"><a href="#cb118-3" tabindex="-1"></a>          <span class="at">searchable =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb118-4"><a href="#cb118-4" tabindex="-1"></a>          <span class="at">sortable =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb118-5"><a href="#cb118-5" tabindex="-1"></a>          <span class="at">defaultPageSize =</span> <span class="dv">5</span>,</span>
-<span id="cb118-6"><a href="#cb118-6" tabindex="-1"></a>          <span class="at">bordered =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb118-7"><a href="#cb118-7" tabindex="-1"></a>          <span class="at">highlight =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
-<div id="htmlwidget-ba4414dd7534c39b8b54" class="reactable html-widget" style="width:auto;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-ba4414dd7534c39b8b54">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"Group":["Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass"],"Value":[64,65,69,72,62,62,72,70,66,68,71,72,65,67,66,69,60,67,76,73,61,63,74,71,65,67,71,72,66,66,66,68,65,63,68,68,63,72,67,71,67,62,70,66,65,61,65,68,62,66,72,71,65,64,70,73,68,60,68,73,65,61,73,70,63,66,66,68,65,66,68,70,62,66,67,75,65,62,64,68,66,70,"NA",71,62,65,"NA",70,65,64,"NA",74,63,63,"NA",70,65,65,"NA",75,66,69,"NA",75,65,61,"NA",69,62,66,"NA",72,65,65,"NA",71,66,61,"NA",70,65,63,"NA",71,61,64,"NA",68,65,67,"NA",70,66,66,"NA",75,65,68,"NA",72,62,"NA","NA",66,"NA","NA","NA",72,"NA","NA","NA",70,"NA","NA","NA",69]},"columns":[{"id":"Group","name":"Group","type":"character"},{"id":"Value","name":"Value","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"5b10fec3a827860709233f7ace24ca3d"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+<span id="cb118-2"><a href="#cb118-2" tabindex="-1"></a><span class="fu">reactable</span>(df_long,<span class="at">searchable =</span> <span class="cn">TRUE</span>,<span class="at">sortable =</span> <span class="cn">TRUE</span>,<span class="at">defaultPageSize =</span> <span class="dv">5</span>, <span class="at">bordered =</span> <span class="cn">TRUE</span>, <span class="at">highlight =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
+<div id="htmlwidget-4f0782c827bee96ffe09" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-4f0782c827bee96ffe09">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"Group":["Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass","Soprano","Alto","Tenor","Bass"],"Value":[64,65,69,72,62,62,72,70,66,68,71,72,65,67,66,69,60,67,76,73,61,63,74,71,65,67,71,72,66,66,66,68,65,63,68,68,63,72,67,71,67,62,70,66,65,61,65,68,62,66,72,71,65,64,70,73,68,60,68,73,65,61,73,70,63,66,66,68,65,66,68,70,62,66,67,75,65,62,64,68,66,70,"NA",71,62,65,"NA",70,65,64,"NA",74,63,63,"NA",70,65,65,"NA",75,66,69,"NA",75,65,61,"NA",69,62,66,"NA",72,65,65,"NA",71,66,61,"NA",70,65,63,"NA",71,61,64,"NA",68,65,67,"NA",70,66,66,"NA",75,65,68,"NA",72,62,"NA","NA",66,"NA","NA","NA",72,"NA","NA","NA",70,"NA","NA","NA",69]},"columns":[{"id":"Group","name":"Group","type":"character"},{"id":"Value","name":"Value","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"5b10fec3a827860709233f7ace24ca3d"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
 <div class="sourceCode" id="cb119"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb119-1"><a href="#cb119-1" tabindex="-1"></a>model <span class="ot">&lt;-</span> <span class="fu">aov</span>(Value <span class="sc">~</span> Group, <span class="at">data =</span> df_long)</span>
 <span id="cb119-2"><a href="#cb119-2" tabindex="-1"></a>anova_summary <span class="ot">&lt;-</span> <span class="fu">summary</span>(model)</span>
 <span id="cb119-3"><a href="#cb119-3" tabindex="-1"></a>f_value <span class="ot">&lt;-</span> anova_summary[[<span class="dv">1</span>]][[<span class="st">&quot;F value&quot;</span>]][<span class="dv">1</span>]</span>
@@ -4284,13 +4269,13 @@ have been collected from the NY Choral Society in 1979.</p>
 <p><span class="math inline">\(p\_value = P(F_{3,126, 0.025}
 &gt;|\)</span> 55.8001343<span class="math inline">\(|) =\)</span> 0</p>
 <p>Conclusion:</p>
-<p>Is $f^* &lt; F_{3,126, 0.025} $?</p>
-<p>55.8001343 &gt; 0.0717096</p>
-<div class="sourceCode" id="cb125"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb125-1"><a href="#cb125-1" tabindex="-1"></a>f_value <span class="sc">&lt;</span> <span class="fu">qf</span>(alpha, <span class="at">df1 =</span> df1, <span class="at">df2 =</span> df2)</span></code></pre></div>
-<pre><code>## [1] FALSE</code></pre>
+<p>Is $f^* &gt; F_{3,126, 0.025} $?</p>
+<p>55.8001343 &gt; 3.2215075</p>
+<div class="sourceCode" id="cb125"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb125-1"><a href="#cb125-1" tabindex="-1"></a>f_value <span class="sc">&gt;</span> <span class="fu">qf</span>(<span class="dv">1</span> <span class="sc">-</span> alpha, <span class="at">df1 =</span> df1, <span class="at">df2 =</span> df2)</span></code></pre></div>
+<pre><code>## [1] TRUE</code></pre>
 <p>Is the p-value less than <span class="math inline">\(\alpha\)</span>?</p>
 <p>0 &lt; 0.025</p>
-<div class="sourceCode" id="cb127"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb127-1"><a href="#cb127-1" tabindex="-1"></a><span class="dv">1</span> <span class="sc">-</span> <span class="fu">pf</span>(f_value, <span class="at">df1 =</span>df1, <span class="at">df2 =</span> df2) <span class="sc">&lt;</span> alpha </span></code></pre></div>
+<div class="sourceCode" id="cb127"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb127-1"><a href="#cb127-1" tabindex="-1"></a><span class="dv">2</span><span class="sc">*</span>(<span class="dv">1</span> <span class="sc">-</span> <span class="fu">pf</span>(f_value, <span class="at">df1 =</span>df1, <span class="at">df2 =</span> df2)) <span class="sc">&lt;</span> alpha </span></code></pre></div>
 <pre><code>## [1] TRUE</code></pre>
 <p>We would conclude that the sample data provides statistical evidence
 that there is a difference in the mean heights across the four types of

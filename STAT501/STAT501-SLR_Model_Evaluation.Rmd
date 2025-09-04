@@ -1,0 +1,168 @@
+---
+title: "STAT501 - SLR Model Evaluation"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: spacelab
+    highlight: tango
+    toc: true
+    toc_depth: 3
+    toc_float: true
+#    code_folding: hide
+    code-tools: true
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  word_document:
+    toc: true
+    toc_depth: '3'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/home/maple/CodeProjects/Statistics/STAT501")
+```
+
+```{r collapse=TRUE}
+library(dplyr)
+library(ggplot2)
+library(qqplotr)
+library(tidyr)
+library(reactable)
+library(openxlsx)
+```
+
+# Confidence Interval with $\beta_1$
+
+We're given data that contains mortality and latitude of people inflicted with cancer.
+
+The first step is to load the data and render with a scatter plot.
+```{r}
+skincancer <- read.table("Data/STAT501_Lesson02/skincancer.txt", header=T)
+reactable(skincancer,searchable = TRUE,sortable = TRUE,
+          defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
+```
+```{r}
+ggplot(skincancer, aes(x = Lat, y = Mort)) + geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  ggtitle("Mortality vs Latitude") + xlab("Latitude (Center of State)") +
+  ylab("Mortality")
+```
+
+It appears that that mortality decreases *linearly* as latitude increases.
+
+Next, creating the model:
+```{r}
+model <- lm(skincancer$Mort ~ skincancer$Lat)
+summary(model)
+```
+
+The 95% confidence interval is:
+
+```{r}
+confint(model, level=0.95)
+```
+
+This is interpreted to mean:
+
+>> We are 95% confidence that the population slope is between -7.2 and -4.8. That is, we are 95% confident that for every additional one-degree increase in latitude, the mean skin cancer mortality rate decreases between 4.8 and 7.2 deaths per 10 million people.
+
+# Slope Inference with $\beta_1$
+
+Is there a positive relationship between sales of leaded gasoline and the lead burden in the bodies of newborn infants? Researchers (Rabinowitz, et al, 1984) who were interested in answering this research question compiled data (Lead Cord data) on the monthly gasoline lead sales (in metric tons) in Massachusetts and mean lead concentrations (µl/dl) in umbilical-cord blood of babies born at a major Boston hospital over 14 months in 1980-1981.
+
+```{r}
+cordblood <- read.table("Data/STAT501_Lesson02/leadcord.txt", header=T)
+reactable(cordblood,searchable = TRUE,sortable = TRUE,
+          defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
+```
+```{r}
+ggplot(cordblood, aes(x = Sold, y = Cord)) + geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  ggtitle("Leaded Gasoline Sales vs Concentration") + xlab("Gasoline Sales") +
+  ylab("Concentration")
+```
+To explore the relationship further, lets do a hypothesis test of on the slope of the regression line.
+
+The hypotheses are for a test as a significance level of 0.05:
+
+1. $H_0: \beta_1 \leq 0$
+2. $H_a: \beta_1 > 0$
+
+Next, modeling the data and thing the  p-value:
+```{r}
+model <- lm(cordblood$Cord ~ cordblood$Sold)
+summary(model)
+```
+The p-value returned by R is for a two tailed test. so we need to divide it by two for a one-tailed test.
+
+```{r}
+0.0083/2
+```
+
+Since $0.00415 < \alpha = 0.05$, we can reject the null hypothesis and conclude the population slope, $\beta_1$, is less than 0.
+
+>> The researchers can be 95% confident that the mean lead concentrations in the umbilical-cord blood of Massachusetts babies increase between 0.0046 and 0.0252 µl/dl for every one-metric ton increase in monthly gasoline lead sales in Massachusetts. It is up to the researchers to debate whether or not this is a meaningful increase.
+
+# ANOVA
+
+Returning to the skin cancer data for ANOVA.
+
+```{r}
+skincancer <- read.table("Data/STAT501_Lesson02/skincancer.txt", header=T)
+model <- lm(skincancer$Mort ~ skincancer$Lat)
+anova(model)
+```
+
+Are does not calculate SSTO by default. This code extracts is from the anova summary.
+
+```{r}
+a <- anova(model)
+sse <- a["Residuals", "Sum Sq"]
+ssr <- sum(a[1, "Sum Sq"])
+ssto <- sse + ssr
+ssto
+```
+# Dual T-Test and ANOVA
+
+This example with data taht contains height and GPA.
+
+```{r}
+heightgpa <- read.table("Data/STAT501_Lesson02/heightgpa.txt", header=T)
+reactable(heightgpa,searchable = TRUE,sortable = TRUE,
+          defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
+```
+
+```{r}
+ggplot(heightgpa, aes(x = height, y = gpa)) + geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  ggtitle("Scatterplot of GPA vs Height") + xlab("Height") +
+  ylab("GPA")
+```
+
+It appears that there not a linear relationship between GPA and height. 
+
+To confirm this, we'll use both a t-test and ANOVA.
+
+The hypotheses are for a test as a significance level of 0.05:
+
+1. $H_0: \beta_1 = 0$
+2. $H_a: \beta_1 \neq 0$
+
+```{r}
+model <- lm(heightgpa$gpa ~ heightgpa$height)
+summary(model)
+```
+
+The p-value from the t-test for height is 0.7613.
+
+```{r}
+anova(model)
+```
+
+Similarly, the p-value from the f-test is also 0.7613
+
+Therefore, there is insufficient statistical evidence to conclude that there is a linear relationship between height and grade point average.
+
+

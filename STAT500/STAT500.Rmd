@@ -9,7 +9,7 @@ output:
     toc: true
     toc_depth: 3
     toc_float: true
-    code_folding: hide
+#    code_folding: hide
     code-tools: true
   pdf_document:
     toc: true

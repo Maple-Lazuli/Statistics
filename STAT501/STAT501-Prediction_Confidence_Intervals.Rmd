@@ -1,0 +1,74 @@
+---
+title: "Confidence Interval and Prediction Interval"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: spacelab
+    highlight: tango
+    toc: true
+    toc_depth: 3
+    toc_float: true
+#    code_folding: hide
+    code-tools: true
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  word_document:
+    toc: true
+    toc_depth: '3'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/home/maple/CodeProjects/Statistics/STAT501")
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(qqplotr)
+library(tidyr)
+library(reactable)
+library(openxlsx)
+```
+
+# Hospital Infection Data
+
+## Data Loading
+
+```{r}
+df <- read.table("../Sample_Data/hospitalinfct_reg1and2.txt", header=T)
+df <- df %>% select(Stay, InfctRsk)
+reactable(df,searchable = TRUE,sortable = TRUE,
+          defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
+```
+
+```{r}
+summary(df)
+```
+
+## Modeling
+
+For this example we'll me modling the Infection Risk Versus Stay
+
+```{r}
+model <- lm(InfctRsk ~ Stay, data=df)
+summary(model)
+```
+## Intervals
+
+Starting with the confidence interval.
+
+```{r}
+predict(model, interval="confidence",
+        newdata=data.frame(Stay=10))
+```
+For the interval given under 95% CI, we say with 95% confidence we can estimate that in hospitals in which the average length of stay is 10 days, the mean infection risk is between 4.25921 and 4.79849.
+
+```{r}
+predict(model, interval="prediction",
+        newdata=data.frame(Stay=10))
+```
+For the interval given under 95% PI, we say with 95% confidence that for any future hospital where the average length of stay is 10 days, the infection risk is between 2.45891 and 6.59878.
+

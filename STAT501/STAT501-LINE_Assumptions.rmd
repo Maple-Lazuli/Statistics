@@ -1,0 +1,142 @@
+---
+title: "LINE Assumption Examples"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: spacelab
+    highlight: tango
+    toc: true
+    toc_depth: 3
+    toc_float: true
+#    code_folding: hide
+    code-tools: true
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  word_document:
+    toc: true
+    toc_depth: '3'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/home/maple/CodeProjects/Statistics/STAT501")
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(qqplotr)
+library(tidyr)
+library(reactable)
+library(openxlsx)
+```
+
+# A Good Residual Plot
+
+This is an example of a good residual plot that meet regression assumptions.
+
+```{r}
+df <- read.table("../Sample_Data/handheight.txt", header = T)
+head(df)
+```
+```{r}
+df <- df %>% select(Height, HandSpan)
+model <- lm(HandSpan ~ Height, data = df)
+summary(model)
+```
+
+```{r}
+df$fits <- fitted(model)
+df$residuals <- resid(model)
+ggplot(df, aes(x = fits, y = residuals)) + geom_point() + xlab("Fits") + ylab("Residuals") + geom_hline(yintercept = 0, color = "grey")
+```
+
+# Wrong Model
+
+This is an exmaple of using the a linear regression when one is not appropriate.
+
+```{r}
+df <- read.table("../Sample_Data/solutions_conc.txt", header = F)
+colnames(df) <- c("Concentration", "Time")
+head(df)
+```
+
+```{r}
+model <- lm(Concentration ~ Time, data = df)
+summary(model)
+```
+```{r}
+df$fits <- fitted(model)
+df$residuals <- resid(model)
+ggplot(df, aes(x = fits, y = residuals)) + geom_point() + xlab("Fits") + ylab("Residuals") + geom_hline(yintercept = 0, color = "grey")
+```
+# Lacking Constant Variance
+
+This is an example of a residual plot depicting a lack of constant variance among the residuals.
+
+```{r}
+df <- read.table("../Sample_Data/realestate.txt", header = T)
+df <- df%>% select(SalePrice, SqFeet)
+head(df)
+```
+
+
+```{r}
+model <- lm(SalePrice ~ SqFeet, data = df)
+summary(model)
+```
+
+```{r}
+df$fits <- fitted(model)
+df$residuals <- resid(model)
+ggplot(df, aes(x = fits, y = residuals)) + geom_point() + xlab("Fits") + ylab("Residuals") + geom_hline(yintercept = 0, color = "grey")
+```
+# Residuals Follow Normal Distribution
+
+```{r}
+df <- read.table("../Sample_Data/oldfaithful.txt", header = T)
+head(df)
+```
+```{r}
+model <- lm(next. ~ duration, data = df)
+summary(model)
+```
+```{r}
+df$fits <- fitted(model)
+df$residuals <- resid(model)
+ggplot(df, aes(sample = residuals)) +
+  stat_qq_band(distribution = "norm", alpha = 0.2, fill = "lightblue") +
+  stat_qq_point(distribution = "norm", color = "blue") +
+  stat_qq_line(distribution = "norm", color = "grey", size = 1) + 
+  labs(title = "Normal Probability Plot",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles")
+```
+
+# Residuals Do Not Follow A Normal Distribution
+
+```{r}
+df <- read.table("../Sample_Data/hospitalinfct_reg1and2.txt", header=T)
+df <- df %>% select(Stay, InfctRsk)
+reactable(df,searchable = TRUE,sortable = TRUE,
+          defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
+```
+
+```{r}
+model <- lm(InfctRsk ~ Stay, data = df)
+summary(model)
+```
+
+```{r}
+df$fits <- fitted(model)
+df$residuals <- resid(model)
+ggplot(df, aes(sample = residuals)) +
+  stat_qq_band(distribution = "norm", alpha = 0.2, fill = "lightblue") +
+  stat_qq_point(distribution = "norm", color = "blue") +
+  stat_qq_line(distribution = "norm", color = "grey", size = 1) + 
+  labs(title = "Normal Probability Plot",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles")
+```

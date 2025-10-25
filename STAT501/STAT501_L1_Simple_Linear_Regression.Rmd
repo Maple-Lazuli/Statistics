@@ -40,7 +40,72 @@ Simple linear regression is a statistical method that allows us to summarize and
 # Example 1-6: Teen Birth Rate and Poverty Level Data
 
 ```{r}
-df <- read.table("../Sample_Data/handheight.txt", header = T)
+df <- read.table("./Data/STAT501_Lesson01/poverty.txt", header = T)
 reactable(df,searchable = TRUE,sortable = TRUE,
           defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
 ```
+
+The data has 51 observations for the 50 states and DC. The $y$ axis has the births per 1000 females who are between 15 and 17. The $x$ axis has the poverty rate.
+
+This scatter plot below shows the general trend.
+
+```{r}
+ggplot(df, aes(x=PovPct, y=Brth15to17)) + geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color ="red") +
+  ggtitle("Scatterplot of Birth Rate and Poverty")
+```
+
+The scatterplot shows that there is a general positive linear trend. 
+
+```{r}
+model <- lm(Brth15to17 ~ PovPct, data=df)
+summary(model)
+```
+
+### Interpretations
+
+The $R^2$ for this model is 0.5333, which means that $53.3%$ of the variation in birthrate is explained by poverty rate.
+
+The interpretation of the slope (value = 1.373) is that the 15 to 17-year-old birth rate increases by 1.373 units, on average, for each unit (one percent) increase in the poverty rate.
+
+The interpretation of the intercept (value=4.267) is that if there were states with a poverty rate = 0, the predicted average for the 15 to 17-year-old birth rate would be 4.267 for those states. Since there are no states with a poverty rate = 0 this interpretation of the intercept is not practically meaningful for this example.
+
+# Example 1-7: Lung Function in 6 to 10 Year Old Children 
+
+```{r}
+df <- read.table("./Data/STAT501_Lesson01/fev_dat.txt", header = T)
+reactable(df,searchable = TRUE,sortable = TRUE,
+          defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
+```
+
+The data consists of 654 observations of children (ages 3 to 19) and lung function ("FEV"). The lung function is measured by the volume of air forcibly exhaled.
+
+```{r}
+ggplot(df, aes(x=age, y=FEV)) + geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color ="red") +
+  ggtitle("Scatterplot of age and lung function")
+```
+
+
+The data shows that there is a general positive linear trend between FEV and age.
+
+```{r}
+model <- lm(FEV ~ age, data=df)
+summary(model)
+```
+
+### Interpretation
+
+Based on the $R^2$ value, 57.22% of the linear variation in FEV is explained by the variation in age.
+
+Additionally, for every unit increase in age, there is a corresponding 0.22 increase in FEV.
+
+
+
+
+
+
+
+
+
+

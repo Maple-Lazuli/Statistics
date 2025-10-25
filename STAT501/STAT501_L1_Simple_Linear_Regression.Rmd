@@ -1,0 +1,46 @@
+---
+title: "STAT501_L1_Simple_Linear_Regression_Examples"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: spacelab
+    highlight: tango
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    code_folding: hide
+    code-tools: true
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  word_document:
+    toc: true
+    toc_depth: '3'
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/home/maple/CodeProjects/Statistics/STAT501")
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(qqplotr)
+library(tidyr)
+library(reactable)
+library(openxlsx)
+```
+
+# Lesson Overview
+Simple linear regression is a statistical method that allows us to summarize and study relationships between two continuous (quantitative) variables. This lesson introduces the concept and basic procedures of simple linear regression.
+
+# Example 1-6: Teen Birth Rate and Poverty Level Data
+
+```{r}
+df <- read.table("../Sample_Data/handheight.txt", header = T)
+reactable(df,searchable = TRUE,sortable = TRUE,
+          defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
+```

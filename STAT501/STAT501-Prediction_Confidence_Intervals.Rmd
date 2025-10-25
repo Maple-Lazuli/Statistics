@@ -24,7 +24,7 @@ knitr::opts_chunk$set(echo = TRUE)
 setwd("/home/maple/CodeProjects/Statistics/STAT501")
 ```
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 library(dplyr)
 library(ggplot2)
 library(qqplotr)

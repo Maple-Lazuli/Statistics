@@ -11,7 +11,7 @@
 
 <meta name="author" content="Ada Lazuli" />
 
-<meta name="date" content="2025-09-22" />
+<meta name="date" content="2025-10-25" />
 
 <title>Confidence Interval and Prediction Interval</title>
 
@@ -2801,41 +2801,28 @@ border-radius: 0px;
 <h1 class="title toc-ignore">Confidence Interval and Prediction
 Interval</h1>
 <h4 class="author">Ada Lazuli</h4>
-<h4 class="date">2025-09-22</h4>
+<h4 class="date">2025-10-25</h4>
 
 </div>
 
 
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span></code></pre></div>
-<pre><code>## 
-## Attaching package: &#39;dplyr&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:stats&#39;:
-## 
-##     filter, lag</code></pre>
-<pre><code>## The following objects are masked from &#39;package:base&#39;:
-## 
-##     intersect, setdiff, setequal, union</code></pre>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="fu">library</span>(qqplotr)</span></code></pre></div>
-<pre><code>## 
-## Attaching package: &#39;qqplotr&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:ggplot2&#39;:
-## 
-##     stat_qq_line, StatQqLine</code></pre>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">library</span>(tidyr)</span>
-<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="fu">library</span>(reactable)</span>
-<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a><span class="fu">library</span>(openxlsx)</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">library</span>(qqplotr)</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="fu">library</span>(tidyr)</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="fu">library</span>(reactable)</span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="fu">library</span>(openxlsx)</span></code></pre></div>
 <div id="hospital-infection-data" class="section level1">
 <h1>Hospital Infection Data</h1>
 <div id="data-loading" class="section level2">
 <h2>Data Loading</h2>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">read.table</span>(<span class="st">&quot;../Sample_Data/hospitalinfct_reg1and2.txt&quot;</span>, <span class="at">header=</span>T)</span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>df <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span> <span class="fu">select</span>(Stay, InfctRsk)</span>
-<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a><span class="fu">reactable</span>(df,<span class="at">searchable =</span> <span class="cn">TRUE</span>,<span class="at">sortable =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>          <span class="at">defaultPageSize =</span> <span class="dv">5</span>, <span class="at">bordered =</span> <span class="cn">TRUE</span>, <span class="at">highlight =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
-<div id="htmlwidget-7a2566f4c148b70f0c0c" class="reactable html-widget" style="width:auto;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-7a2566f4c148b70f0c0c">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"Stay":[11.2,8.84,11.07,12.78,11.62,9.78,9.31,8.19,11.65,11.03,11.77,13.59,10.33,11.48,8.63,11.15,10.42,9.42,8.03,10.05,8.9,9.36,8.54,12.01,9.89,13.95,8.82,9.76,11.18,7.58,9.06,10.24,8.28,9.89,9.84,9.74,9.97,10.47,8.37,10.9,9.23,12.07,10.73,11.18,9.66,10.02,7.39,8.45,10.23,8.88,10.3,10.79,7.94,10.39,8.92,9.77,8.02,11.8],"InfctRsk":[5.7,6.3,4.9,7.7,6.4,5,4.5,3.2,4.4,5,5.3,6.1,5,5.6,3.1,3.9,3.4,4.3,3.5,4.5,2.9,4.8,2.5,4.8,4.3,6.6,1.6,5.1,5.4,3.7,4.2,4.8,3.9,4.9,5.2,6.3,2.8,4.1,5.5,5.5,4.3,7.8,3.9,5.7,4.4,4.4,4.2,3.4,4.9,4.4,5.1,2.9,3.5,4.3,1.3,5.3,2.1,5.7]},"columns":[{"id":"Stay","name":"Stay","type":"numeric"},{"id":"InfctRsk","name":"InfctRsk","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"201d26960063d811e8052def95b81798"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">summary</span>(df)</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">read.table</span>(<span class="st">&quot;../Sample_Data/hospitalinfct_reg1and2.txt&quot;</span>, <span class="at">header=</span>T)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>df <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span> <span class="fu">select</span>(Stay, InfctRsk)</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="fu">reactable</span>(df,<span class="at">searchable =</span> <span class="cn">TRUE</span>,<span class="at">sortable =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>          <span class="at">defaultPageSize =</span> <span class="dv">5</span>, <span class="at">bordered =</span> <span class="cn">TRUE</span>, <span class="at">highlight =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
+<div id="htmlwidget-483218ff240597444b2a" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-483218ff240597444b2a">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"Stay":[11.2,8.84,11.07,12.78,11.62,9.78,9.31,8.19,11.65,11.03,11.77,13.59,10.33,11.48,8.63,11.15,10.42,9.42,8.03,10.05,8.9,9.36,8.54,12.01,9.89,13.95,8.82,9.76,11.18,7.58,9.06,10.24,8.28,9.89,9.84,9.74,9.97,10.47,8.37,10.9,9.23,12.07,10.73,11.18,9.66,10.02,7.39,8.45,10.23,8.88,10.3,10.79,7.94,10.39,8.92,9.77,8.02,11.8],"InfctRsk":[5.7,6.3,4.9,7.7,6.4,5,4.5,3.2,4.4,5,5.3,6.1,5,5.6,3.1,3.9,3.4,4.3,3.5,4.5,2.9,4.8,2.5,4.8,4.3,6.6,1.6,5.1,5.4,3.7,4.2,4.8,3.9,4.9,5.2,6.3,2.8,4.1,5.5,5.5,4.3,7.8,3.9,5.7,4.4,4.4,4.2,3.4,4.9,4.4,5.1,2.9,3.5,4.3,1.3,5.3,2.1,5.7]},"columns":[{"id":"Stay","name":"Stay","type":"numeric"},{"id":"InfctRsk","name":"InfctRsk","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"201d26960063d811e8052def95b81798"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">summary</span>(df)</span></code></pre></div>
 <pre><code>##       Stay           InfctRsk    
 ##  Min.   : 7.390   Min.   :1.300  
 ##  1st Qu.: 8.905   1st Qu.:3.900  
@@ -2847,8 +2834,8 @@ Interval</h1>
 <div id="modeling" class="section level2">
 <h2>Modeling</h2>
 <p>For this example we’ll me modling the Infection Risk Versus Stay</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>model <span class="ot">&lt;-</span> <span class="fu">lm</span>(InfctRsk <span class="sc">~</span> Stay, <span class="at">data=</span>df)</span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="fu">summary</span>(model)</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>model <span class="ot">&lt;-</span> <span class="fu">lm</span>(InfctRsk <span class="sc">~</span> Stay, <span class="at">data=</span>df)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="fu">summary</span>(model)</span></code></pre></div>
 <pre><code>## 
 ## Call:
 ## lm(formula = InfctRsk ~ Stay, data = df)
@@ -2871,15 +2858,15 @@ Interval</h1>
 <div id="intervals" class="section level2">
 <h2>Intervals</h2>
 <p>Starting with the confidence interval.</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="fu">predict</span>(model, <span class="at">interval=</span><span class="st">&quot;confidence&quot;</span>,</span>
-<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>        <span class="at">newdata=</span><span class="fu">data.frame</span>(<span class="at">Stay=</span><span class="dv">10</span>))</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">predict</span>(model, <span class="at">interval=</span><span class="st">&quot;confidence&quot;</span>,</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>        <span class="at">newdata=</span><span class="fu">data.frame</span>(<span class="at">Stay=</span><span class="dv">10</span>))</span></code></pre></div>
 <pre><code>##        fit      lwr      upr
 ## 1 4.528846 4.259205 4.798486</code></pre>
 <p>For the interval given under 95% CI, we say with 95% confidence we
 can estimate that in hospitals in which the average length of stay is 10
 days, the mean infection risk is between 4.25921 and 4.79849.</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="fu">predict</span>(model, <span class="at">interval=</span><span class="st">&quot;prediction&quot;</span>,</span>
-<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a>        <span class="at">newdata=</span><span class="fu">data.frame</span>(<span class="at">Stay=</span><span class="dv">10</span>))</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">predict</span>(model, <span class="at">interval=</span><span class="st">&quot;prediction&quot;</span>,</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>        <span class="at">newdata=</span><span class="fu">data.frame</span>(<span class="at">Stay=</span><span class="dv">10</span>))</span></code></pre></div>
 <pre><code>##        fit     lwr      upr
 ## 1 4.528846 2.45891 6.598781</code></pre>
 <p>For the interval given under 95% PI, we say with 95% confidence that

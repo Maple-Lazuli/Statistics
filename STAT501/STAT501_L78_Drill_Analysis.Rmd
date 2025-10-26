@@ -16,6 +16,8 @@ library(qqplotr)
 library(tidyr)
 library(reactable)
 library(openxlsx)
+library(nortest) # For anderson-darling test
+library(lmtest) # needed for Breusch-Pagan test
 ```
 
 # Drill Data Analysis
@@ -39,6 +41,7 @@ head(df)
 model <- lm(AVTEM ~ IT + I2 + VS + QW + Q2, data = df)
 summary(model)
 ```
+
 
 ```{r}
 anova(model)
@@ -74,4 +77,114 @@ Then, to get the **p-value**,
 Since $P(F_{2,84} \leq x ) = 0.5583671$, we fail to reject the null hypothesis.
 
 At a significance level of 5%, there is not evidence that QW and Q2 contribute significantly after considering the rest of the predictors.
+
+## LINE Assumption Verification On Reducted Model
+
+```{r}
+model <- lm(AVTEM ~ IT + I2 + VS, data = df)
+df$resid <- resid(model)
+df$fitted <- fitted(model)
+summary(model)
+```
+
+```{r}
+anova(model)
+```
+
+### Normalcy
+
+Starting with the assumption or normalcy.
+
+```{r}
+ggplot(df, aes(x=resid)) + geom_histogram(alpha=0.3)
+```
+```{r}
+ggplot(df, aes(sample = resid)) +
+  stat_qq_band(distribution = "norm", alpha = 0.2, fill = "lightblue") +
+  stat_qq_point(distribution = "norm", color = "blue") +
+  stat_qq_line(distribution = "norm", color = "grey", size = 1) + 
+  labs(title = "Normal Probability Plot",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles")
+```
+
+Based on the probability plot and histogram, it seems like the residuals are approximately normally distributed.
+
+The Anderson-Darling test will allow for confirmation.
+
+$H_0: \text{The errors follow a normal distribution}\\ H_a: \text{The errors do not follow a normal distribution}$
+
+```{r}
+ad.test(df$resid)
+```
+
+With a $\text{p-value} = 0.2866$, there is not enough evidence to reject the null hypothesis.
+
+### Linearity and Equal Variance
+
+```{r}
+ggplot(df, aes(x = IT, y=resid)) + geom_point() + ylab("Residuals") + xlab("Fits") + ggtitle("Residual Vs Fits plot for IT") +  geom_hline(yintercept = 0, color = "grey")
+```
+
+```{r}
+ggplot(df, aes(x = VS, y=resid)) + geom_point() + ylab("Residuals") + xlab("Fits") + ggtitle("Residual Vs Fits plot for VS") +  geom_hline(yintercept = 0, color = "grey")
+```
+
+Based on the scatter plots, it seems that the assumptions for linearity and equal variance are met.
+
+
+Going further with a a **Breusch-Pagan** test for equal variance:
+
+#### Manual BP Test
+
+```{r}
+df$e <- resid(model)
+df$e2 <- df$e^2
+```
+
+```{r}
+aux <- lm(e2 ~ IT + I2 + VS, data = df)
+anova(aux)
+```
+
+$H_0: \forall_{i \in \{1,2,3\}} \gamma_i = 0\\H_a: \exists_{i \in \{1,2,3\}} \gamma_i \neq 0$
+
+Our test statistic is given by
+
+$$
+\chi^2_{bp} = \frac{SSR^*}{2} \div \Bigg(\frac{SSE_F}{n}\Bigg)^2 
+$$
+Where our degrees of freedom are based on the number of predictors. In this case $df = 3$. **Note:** There is some conflicting information on whether to divide the $SSR^*$ term by 2 when conducting MLR.
+
+$$
+SSR^* = 9 + 356 + 171 = 536, \quad SSE_F = 1342.7, \quad n=90, \quad df  = 3
+$$
+
+So,
+
+$$
+\chi^2_{bp} = \frac{SSR^*}{2} \div \Bigg(\frac{SSE_F}{n}\Bigg)^2 = \frac{536}{2} \div \Bigg(\frac{1342.7}{90}\Bigg)^2 =  1.20
+$$
+
+The critical region for this test is:
+
+```{r}
+qchisq(0.95,3)
+```
+
+And our p-value is:
+
+```{r}
+1 - pchisq(1.204098,3)
+```
+
+So we fail to reject the null hypothesis.
+
+At a significance level of 5%, there no evidence that the constancy of residuals differ from 0 for each of the predictors.
+
+#### Using lmtest package
+
+```{r}
+bptest(model, ~ IT + I2 + VS, data = df)
+```
 

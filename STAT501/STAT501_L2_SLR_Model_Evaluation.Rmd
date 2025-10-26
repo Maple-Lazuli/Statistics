@@ -1,0 +1,232 @@
+---
+title: "STAT501_L2_SLR_Model_Evaluation"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: spacelab
+    highlight: tango
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    code_folding: hide
+    code-tools: true
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  word_document:
+    toc: true
+    toc_depth: '3'
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/home/maple/CodeProjects/Statistics/STAT501")
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(qqplotr)
+library(tidyr)
+library(reactable)
+library(openxlsx)
+```
+
+# Lesson Overview
+
+This lesson presents two alternative methods for testing whether a linear association exists between the predictor x and the response y in a simple linear regression model:
+
+$H_0: \beta_1 = 0 \text{ versus } H_a: \beta_1 \neq 0$
+
+One is the t-test for the slope while the other is an analysis of variance (ANOVA) F-test.
+
+As you know, one of the primary goals of this course is to be able to translate a research question into a statistical procedure. Here are two examples of research questions and the alternative statistical procedures that could be used to answer them:
+
+1. Is there a (linear) relationship between skin cancer mortality and latitude?
+    + What statistical procedure answers this research question? We could estimate the regression line and then use the t-test to determine if the slope, 
+, of the population regression line, is 0.
+    + Alternatively, we could perform an (analysis of variance) F-test.
+2. Is there a (linear) relationship between height and grade point average?
+    + What statistical procedure answers this research question? We could estimate the regression line and then use the t-test to see if the slope, 
+, of the population regression line, is 0.
+    + Again, we could alternatively perform an (analysis of variance) F-test.
+
+We also learn a way to check for linearity — the "L" in the "LINE" conditions — using the linear lack of fit test. This test requires replicates, that is multiple observations of y for at least one (preferably more) values of x, and concerns the following hypotheses:
+
+$H_0$: There is no lack of linear fit.
+
+$H_a$: There is a lack of linear fit.
+
+# Example 2.11-The Lack Of Fit F-Test
+
+```{r}
+df <- read.table("./Data/STAT501_Lesson02/newaccounts.txt", header = T)
+reactable(df,searchable = TRUE,sortable = TRUE,
+          defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
+```
+
+This data consists of 11 observations that capture the minimum deposit size and the number of new accounts. 
+
+```{r}
+ggplot(df, aes(x=Size, y=New)) + geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color ="red") +
+  ggtitle("Scatterplot of minimum deposit size and number of accounts")
+```
+
+The data shows a poor linear relationship between the number of accounts and the minimum deposit size.
+
+```{r}
+model <- lm(New ~ Size, data=df)
+summary(model)
+```
+
+
+```{r}
+anova(model)
+```
+
+For the lack of fit test in R
+
+```{r}
+model_full <- lm(New ~ factor(Size), data=df)
+anova(model, model_full)
+```
+### Lack Of Fit Test
+
+
+For this lack of fit test, the hypotheses are:
+
+$H_0$: The relationship assumed in the model is reasonable, i.e., there is no lack of fit.
+
+$H_a$: The relationship assumed in the model is not reasonable, i.e., there is a lack of fit.
+
+R gives use SSLF and SSPE, but it does not give MSLF and MSPE.
+
+$$
+MSLF = \frac{SSLF}{c - 2}, \quad MSPE = \frac{SSPE}{n - c}
+$$
+$c$ is just the number of factors. In this instance c is `r nlevels(factor(df$Size))`, as seen here:
+
+```{r}
+factor(df$Size)
+```
+
+So,
+$$
+MSLF = \frac{SSLF}{c - 2} = \frac{14742 - 1148}{6 - 2}= 3398.5 ,\quad MSPE = \frac{1148}{11-6} = 229.6
+$$
+
+
+$$
+F^* = \frac{MSLF}{MSLE} = \frac{3398.5}{229.6} = 14.8
+$$
+To get the pvalue, we use `qf(f*), c-2, n - c)` which is `1-pf(14.8, 4, 5)` = `r 1- pf(14.8, 4, 5)`
+
+(remember, it is `1 - qf()` because this is a two tailed test)
+
+Since our p-value is less than our assumed $\alpha$ of $0.05$, we have evidence to reject the null hypothesis.
+
+At a significance level of 5%, there is evidence that the relationship assumed in the model is not reasonable.
+
+# Example 2-5: Highway Sign Reading Distance
+
+The data consists of 30 observations that capture a driver's age and the maximum distance (in feet) at which individuals can read a highway sign.
+
+
+```{r}
+df <- read.table("./Data/STAT501_Lesson02/signdist.txt", header = T)
+reactable(df,searchable = TRUE,sortable = TRUE,
+          defaultPageSize = 5, bordered = TRUE, highlight = TRUE)
+```
+
+There seems to be a negative linear relationship between the age of the drive and the distance that they can read the sign.
+
+```{r}
+ggplot(df, aes(x=Age, y=Distance)) + geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color ="red") +
+  ggtitle("Scatterplot of driver age and sign reading distance")
+```
+
+
+```{r}
+model <- lm(Distance ~ Age, data = df)
+summary(model)
+```
+
+```{r}
+anova(model)
+```
+### Hypothesis Test for the intercept ($\beta_0$)
+
+The hypotheses for this test are:
+
+$H_0: \beta_0 = 0\\H_a: \beta_0 \neq 0$
+
+The test statistic is given byL
+
+$$
+t^* = \frac{b - \beta_0}{se(b_0)} = \frac{576.6819}{23.4709} = 24.57
+$$
+
+The degrees of freedom are $df = n - p  = 30 - 2 = 28$
+
+```{r}
+alpa <- 0.05
+1 - pt(24.57, 28)
+```
+
+Since $\text{p-value} \approx 0$, we have evidence to reject the null hypothesis.
+
+At a significance level of 5%, there is evidence that the population intercept is not equal to 0.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

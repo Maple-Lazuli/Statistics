@@ -188,3 +188,22 @@ At a significance level of 5%, there no evidence that the constancy of residuals
 bptest(model, ~ IT + I2 + VS, data = df)
 ```
 
+### Confidence and Prediction Intervals
+
+We need to perform a confidence interval for drills with the characteristics of:
+1. $IT = 6$
+2. $I2 = 4$
+3. $VS = 10$
+
+
+```{r}
+new <- data.frame(IT = 6, I2 = 4, VS = 10)
+
+predict(model, newdata = new, interval = "confidence", level = 0.95)
+```
+
+```{r}
+new <- data.frame(IT = 6, I2 = 4, VS = 10)
+
+predict(model, newdata = new, interval = "prediction", level = 0.95)
+```

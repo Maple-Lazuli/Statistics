@@ -591,6 +591,22 @@ of residuals differ from 0 for each of the predictors.</p>
 ## BP = 1.3776, df = 3, p-value = 0.7108</code></pre>
 </div>
 </div>
+<div id="confidence-and-prediction-intervals" class="section level3">
+<h3>Confidence and Prediction Intervals</h3>
+<p>We need to perform a confidence interval for drills with the
+characteristics of: 1. <span class="math inline">\(IT = 6\)</span> 2.
+<span class="math inline">\(I2 = 4\)</span> 3. <span class="math inline">\(VS = 10\)</span></p>
+<pre class="r"><code>new &lt;- data.frame(IT = 6, I2 = 4, VS = 10)
+
+predict(model, newdata = new, interval = &quot;confidence&quot;, level = 0.95)</code></pre>
+<pre><code>##        fit      lwr      upr
+## 1 157.8802 155.8642 159.8961</code></pre>
+<pre class="r"><code>new &lt;- data.frame(IT = 6, I2 = 4, VS = 10)
+
+predict(model, newdata = new, interval = &quot;prediction&quot;, level = 0.95)</code></pre>
+<pre><code>##        fit      lwr      upr
+## 1 157.8802 149.7708 165.9895</code></pre>
+</div>
 </div>
 </div>
 

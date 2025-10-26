@@ -122,7 +122,7 @@ $$
 $$
 F^* = \frac{MSLF}{MSLE} = \frac{3398.5}{229.6} = 14.8
 $$
-To get the pvalue, we use `qf(f*), c-2, n - c)` which is `1-pf(14.8, 4, 5)` = `r 1- pf(14.8, 4, 5)`
+To get the pvalue, we use `qf(f*), c-2, n - c)` which is `2*(1-pf(14.8, 4, 5))` = `r 2*(1- pf(14.8, 4, 5))`
 
 (remember, it is `1 - qf()` because this is a two tailed test)
 
@@ -164,7 +164,7 @@ The hypotheses for this test are:
 
 $H_0: \beta_0 = 0\\H_a: \beta_0 \neq 0$
 
-The test statistic is given byL
+The test statistic is given by:
 
 $$
 t^* = \frac{b - \beta_0}{se(b_0)} = \frac{576.6819}{23.4709} = 24.57
@@ -173,8 +173,8 @@ $$
 The degrees of freedom are $df = n - p  = 30 - 2 = 28$
 
 ```{r}
-alpa <- 0.05
-1 - pt(24.57, 28)
+alpha <- 0.05
+2* (1 - pt(24.57, 28))
 ```
 
 Since $\text{p-value} \approx 0$, we have evidence to reject the null hypothesis.
@@ -182,18 +182,49 @@ Since $\text{p-value} \approx 0$, we have evidence to reject the null hypothesis
 At a significance level of 5%, there is evidence that the population intercept is not equal to 0.
 
 
+### Hypothesis Tes for the Slope ($\beta_1$)
+
+The hypotheses for this test are:
+
+$H_0: \beta_1 = 0\\H_a: \beta_1 \neq 0$
+
+The test statistic is given by:
 
 
+$$
+t^* = \frac{b - \beta_1}{se(b_1)} = \frac{-3}{0.4243} = -7.086
+$$
 
+```{r}
+alpha <- 0.05
+2* (1 - pt(abs(-7.086), 28))
+```
 
+Since our p-value is less than our alpha of 0.05, there is evidence to reject the null hypothesis.
 
+At a significance level of 5%, there is evidence that the population slope differs from zero.
 
+### Confidence Interval for $\beta_1$
 
+The confidence interval is given by:
 
+$$
+\large \beta \pm t_{\frac{a}{2}, n - p} \times se(\beta_1)
+$$
 
+Here, the confidence interval is:
 
+```{r}
+alpha <- 1 - 0.95 # for a 95% confidence interval.
 
+t <- qt(1 - alpha/2, 28)
+se <- 0.4243
+b1 <- -3
 
+sprintf("(%f, %f)", b1 - se*t, b1 + se*t)
+```
+
+**Interpretation:** With 95% confidence, we can say the mean sign reading distance decreases somewhere between 2.14 and 3.88 feet per each one-year increase in age.
 
 
 

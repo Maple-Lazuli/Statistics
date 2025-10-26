@@ -2956,8 +2956,8 @@ fit.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">read.table</span>(<span class="st">&quot;./Data/STAT501_Lesson02/newaccounts.txt&quot;</span>, <span class="at">header =</span> T)</span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="fu">reactable</span>(df,<span class="at">searchable =</span> <span class="cn">TRUE</span>,<span class="at">sortable =</span> <span class="cn">TRUE</span>,</span>
 <span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>          <span class="at">defaultPageSize =</span> <span class="dv">5</span>, <span class="at">bordered =</span> <span class="cn">TRUE</span>, <span class="at">highlight =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
-<div id="htmlwidget-4a4b3cd9d38225cbc29f" class="reactable html-widget" style="width:auto;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-4a4b3cd9d38225cbc29f">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"Size":[75,75,100,100,125,125,150,175,175,200,200],"New":[28,42,112,136,160,150,152,156,124,124,104],"New2":[85,88,97,100,108,113,126,134,139,147,150]},"columns":[{"id":"Size","name":"Size","type":"numeric"},{"id":"New","name":"New","type":"numeric"},{"id":"New2","name":"New2","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"aac77cf2dfd7eeac3778802bc510c186"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-ff462970226157e6d6e3" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-ff462970226157e6d6e3">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"Size":[75,75,100,100,125,125,150,175,175,200,200],"New":[28,42,112,136,160,150,152,156,124,124,104],"New2":[85,88,97,100,108,113,126,134,139,147,150]},"columns":[{"id":"Size","name":"Size","type":"numeric"},{"id":"New","name":"New","type":"numeric"},{"id":"New2","name":"New2","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"aac77cf2dfd7eeac3778802bc510c186"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
 <p>This data consists of 11 observations that capture the minimum
 deposit size and the number of new accounts.</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">ggplot</span>(df, <span class="fu">aes</span>(<span class="at">x=</span>Size, <span class="at">y=</span>New)) <span class="sc">+</span> <span class="fu">geom_point</span>() <span class="sc">+</span></span>
@@ -3026,7 +3026,7 @@ MSPE = \frac{1148}{11-6} = 229.6
 <p><span class="math display">\[
 F^* = \frac{MSLF}{MSLE} = \frac{3398.5}{229.6} = 14.8
 \]</span> To get the pvalue, we use <code>qf(f*), c-2, n - c)</code>
-which is <code>1-pf(14.8, 4, 5)</code> = 0.005595</p>
+which is <code>2*(1-pf(14.8, 4, 5))</code> = 0.0111899</p>
 <p>(remember, it is <code>1 - qf()</code> because this is a two tailed
 test)</p>
 <p>Since our p-value is less than our assumed <span class="math inline">\(\alpha\)</span> of <span class="math inline">\(0.05\)</span>, we have evidence to reject the null
@@ -3043,8 +3043,8 @@ sign.</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a>df <span class="ot">&lt;-</span> <span class="fu">read.table</span>(<span class="st">&quot;./Data/STAT501_Lesson02/signdist.txt&quot;</span>, <span class="at">header =</span> T)</span>
 <span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="fu">reactable</span>(df,<span class="at">searchable =</span> <span class="cn">TRUE</span>,<span class="at">sortable =</span> <span class="cn">TRUE</span>,</span>
 <span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>          <span class="at">defaultPageSize =</span> <span class="dv">5</span>, <span class="at">bordered =</span> <span class="cn">TRUE</span>, <span class="at">highlight =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
-<div id="htmlwidget-e64d07533ca03e8f8630" class="reactable html-widget" style="width:auto;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-e64d07533ca03e8f8630">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"Age":[18,20,22,23,23,25,27,28,29,32,37,41,46,49,53,55,63,65,66,67,68,70,71,72,73,74,75,77,79,82],"Distance":[510,590,560,510,460,490,560,510,460,410,420,460,450,380,460,420,350,420,300,410,300,390,320,370,280,420,460,360,310,360]},"columns":[{"id":"Age","name":"Age","type":"numeric"},{"id":"Distance","name":"Distance","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"f35a7144dde3bd9393c6da2d42e38580"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-06d7a9ddf5b3b48263e4" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-06d7a9ddf5b3b48263e4">{"x":{"tag":{"name":"Reactable","attribs":{"data":{"Age":[18,20,22,23,23,25,27,28,29,32,37,41,46,49,53,55,63,65,66,67,68,70,71,72,73,74,75,77,79,82],"Distance":[510,590,560,510,460,490,560,510,460,410,420,460,450,380,460,420,350,420,300,410,300,390,320,370,280,420,460,360,310,360]},"columns":[{"id":"Age","name":"Age","type":"numeric"},{"id":"Distance","name":"Distance","type":"numeric"}],"searchable":true,"defaultPageSize":5,"highlight":true,"bordered":true,"dataKey":"f35a7144dde3bd9393c6da2d42e38580"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
 <p>There seems to be a negative linear relationship between the age of
 the drive and the distance that they can read the sign.</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="fu">ggplot</span>(df, <span class="fu">aes</span>(<span class="at">x=</span>Age, <span class="at">y=</span>Distance)) <span class="sc">+</span> <span class="fu">geom_point</span>() <span class="sc">+</span></span>
@@ -3086,19 +3086,55 @@ the drive and the distance that they can read the sign.</p>
 <p>The hypotheses for this test are:</p>
 <p><span class="math inline">\(H_0: \beta_0 = 0\\H_a: \beta_0 \neq
 0\)</span></p>
-<p>The test statistic is given byL</p>
+<p>The test statistic is given by:</p>
 <p><span class="math display">\[
 t^* = \frac{b - \beta_0}{se(b_0)} = \frac{576.6819}{23.4709} = 24.57
 \]</span></p>
 <p>The degrees of freedom are <span class="math inline">\(df = n - p  =
 30 - 2 = 28\)</span></p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a>alpa <span class="ot">&lt;-</span> <span class="fl">0.05</span></span>
-<span id="cb20-2"><a href="#cb20-2" tabindex="-1"></a><span class="dv">1</span> <span class="sc">-</span> <span class="fu">pt</span>(<span class="fl">24.57</span>, <span class="dv">28</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a>alpha <span class="ot">&lt;-</span> <span class="fl">0.05</span></span>
+<span id="cb20-2"><a href="#cb20-2" tabindex="-1"></a><span class="dv">2</span><span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> <span class="fu">pt</span>(<span class="fl">24.57</span>, <span class="dv">28</span>))</span></code></pre></div>
 <pre><code>## [1] 0</code></pre>
 <p>Since <span class="math inline">\(\text{p-value} \approx 0\)</span>,
 we have evidence to reject the null hypothesis.</p>
 <p>At a significance level of 5%, there is evidence that the population
 intercept is not equal to 0.</p>
+</div>
+<div id="hypothesis-tes-for-the-slope-beta_1" class="section level3">
+<h3>Hypothesis Tes for the Slope (<span class="math inline">\(\beta_1\)</span>)</h3>
+<p>The hypotheses for this test are:</p>
+<p><span class="math inline">\(H_0: \beta_1 = 0\\H_a: \beta_1 \neq
+0\)</span></p>
+<p>The test statistic is given by:</p>
+<p><span class="math display">\[
+t^* = \frac{b - \beta_1}{se(b_1)} = \frac{-3}{0.4243} = -7.086
+\]</span></p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" tabindex="-1"></a>alpha <span class="ot">&lt;-</span> <span class="fl">0.05</span></span>
+<span id="cb22-2"><a href="#cb22-2" tabindex="-1"></a><span class="dv">2</span><span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> <span class="fu">pt</span>(<span class="fu">abs</span>(<span class="sc">-</span><span class="fl">7.086</span>), <span class="dv">28</span>))</span></code></pre></div>
+<pre><code>## [1] 1.040877e-07</code></pre>
+<p>Since our p-value is less than our alpha of 0.05, there is evidence
+to reject the null hypothesis.</p>
+<p>At a significance level of 5%, there is evidence that the population
+slope differs from zero.</p>
+</div>
+<div id="confidence-interval-for-beta_1" class="section level3">
+<h3>Confidence Interval for <span class="math inline">\(\beta_1\)</span></h3>
+<p>The confidence interval is given by:</p>
+<p><span class="math display">\[
+\large \beta \pm t_{\frac{a}{2}, n - p} \times se(\beta_1)
+\]</span></p>
+<p>Here, the confidence interval is:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" tabindex="-1"></a>alpha <span class="ot">&lt;-</span> <span class="dv">1</span> <span class="sc">-</span> <span class="fl">0.95</span> <span class="co"># for a 95% confidence interval.</span></span>
+<span id="cb24-2"><a href="#cb24-2" tabindex="-1"></a></span>
+<span id="cb24-3"><a href="#cb24-3" tabindex="-1"></a>t <span class="ot">&lt;-</span> <span class="fu">qt</span>(<span class="dv">1</span> <span class="sc">-</span> alpha<span class="sc">/</span><span class="dv">2</span>, <span class="dv">28</span>)</span>
+<span id="cb24-4"><a href="#cb24-4" tabindex="-1"></a>se <span class="ot">&lt;-</span> <span class="fl">0.4243</span></span>
+<span id="cb24-5"><a href="#cb24-5" tabindex="-1"></a>b1 <span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">3</span></span>
+<span id="cb24-6"><a href="#cb24-6" tabindex="-1"></a></span>
+<span id="cb24-7"><a href="#cb24-7" tabindex="-1"></a><span class="fu">sprintf</span>(<span class="st">&quot;(%f, %f)&quot;</span>, b1 <span class="sc">-</span> se<span class="sc">*</span>t, b1 <span class="sc">+</span> se<span class="sc">*</span>t)</span></code></pre></div>
+<pre><code>## [1] &quot;(-3.869139, -2.130861)&quot;</code></pre>
+<p><strong>Interpretation:</strong> With 95% confidence, we can say the
+mean sign reading distance decreases somewhere between 2.14 and 3.88
+feet per each one-year increase in age.</p>
 </div>
 </div>
 

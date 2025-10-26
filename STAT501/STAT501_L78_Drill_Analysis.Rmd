@@ -1,0 +1,77 @@
+---
+title: "STAT501_L78_Drill_Analysis"
+author: "Ada Lazuli"
+date: "2025-10-26"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/home/maple/CodeProjects/Statistics/STAT501")
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(qqplotr)
+library(tidyr)
+library(reactable)
+library(openxlsx)
+```
+
+# Drill Data Analysis
+
+## Data and Background
+
+A laboratory that tests consumer products selected a variety of drills to compare how likely each will overheat under certain conditions.
+
+The response variable for analysis is **AVTEM** = mean temperature of drill. The dataset includes predictor variables measuring factors to control the drill’s resistance to overheating. 
+
+In particular, **IT** is thickness of insulation, **QW** is an assessment of wire quality in the drill motor, **VS** is the size of the vent used in the drill motor, **I2** is **IT** centered and squared, and **Q2** is **QW** centered and squared.
+
+```{r}
+df <- read.csv("~/Downloads/HW6Drill.csv")
+head(df)
+```
+
+## Modeling
+
+```{r}
+model <- lm(AVTEM ~ IT + I2 + VS + QW + Q2, data = df)
+summary(model)
+```
+
+```{r}
+anova(model)
+```
+
+
+Based on the ANOVA output, the sum of squared errors is 1324.2 with degrees of freedom 84
+
+## Analysis of QW and Q2
+
+We need to perform a general linear F-test to determine whether QW and Q2 provide significant information about the response.
+
+$H_0: QW=Q2= 0 \\ H_a: (QW \neq 0) \vee (Q2 \neq 0)$
+
+$$
+F^* = \frac{\frac{SSE_R - SSE_F}{P_F - P_R}}{\frac{SSE_F}{n - P_F}}
+$$
+$$
+SSE_R = 1324.2 + 0.3 + 18.2 = 1342.7, \quad P_F = 6,\quad P_R = 4, \quad SSE_F = 1324.2
+$$
+So,
+
+$$
+F^* = \frac{(1342.7-1324.2)/(6-4)}{1324.2/84} = 0.5868
+$$
+
+Then, to get the **p-value**,
+
+```{r}
+1 - pf(0.5868, 2, 84)
+```
+
+Since $P(F_{2,84} \leq x ) = 0.5583671$, we fail to reject the null hypothesis.
+
+At a significance level of 5%, there is not evidence that QW and Q2 contribute significantly after considering the rest of the predictors.
+

@@ -1,9 +1,24 @@
 ---
 title: "STAT501_L78_Drill_Analysis"
 author: "Ada Lazuli"
-date: "2025-10-26"
-output: html_document
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: spacelab
+    highlight: tango
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    code_folding: hide
+    code-tools: true
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  word_document:
+    toc: true
+    toc_depth: '3'
 ---
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 setwd("/home/maple/CodeProjects/Statistics/STAT501")

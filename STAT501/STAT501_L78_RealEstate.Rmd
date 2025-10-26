@@ -1,0 +1,168 @@
+---
+title: "STAT501_L78_RealEstate"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: spacelab
+    highlight: tango
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    code_folding: hide
+    code-tools: true
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  word_document:
+    toc: true
+    toc_depth: '3'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/home/maple/CodeProjects/Statistics/STAT501")
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(qqplotr)
+library(tidyr)
+library(reactable)
+library(openxlsx)
+library(nortest) # For anderson-darling test
+library(lmtest) # needed for Breusch-Pagan test
+```
+
+# Real Estate Analysis
+
+## Data and Background
+
+```{r}
+df <- read.csv("~/Downloads/HW6RealEstate.csv")
+head(df)
+```
+
+The data has 521 observations, with the following fields:
+
+1. **SalePrice** = the selling price of the home
+2. **SqrFeet** = square foot area of the home
+3. **Bedrooms** = number of bedrooms in the home
+4. **Bathrooms** = number of bathrooms in the home
+5. **Air** = 1 if the home has air conditioning, 0 if it does not
+6. **AirSqrFeet** = interaction term calculated as Air*SqrFeet
+7. **AirBeds** = interaction term calculated as Air*Bedrooms
+8. **AirBath** = interaction term calculated as Air*Bathrooms
+
+## Initial Analysis
+
+```{r}
+model <- lm(SalePrice ~ SqrFeet + Bedrooms + Bathrooms + Air + AirSqrFeet + AirBeds + AirBath, data = df)
+summary(model)
+```
+
+```{r}
+anova(model)
+```
+
+Based on the anova,
+
+The SSE for model is 2900977 with 513 degrees of freedom
+
+$$
+MSE = \frac{SSE}{n - p} = \frac{2900977}{513} = 5654.93
+$$
+
+Based on the the individual t-tests, it seems that the following might not be useful for predicting sale price:
+1. Bedroom
+2. AirBeds
+3. AirBath
+
+## A restricted model
+
+```{r}
+restricted <- lm(SalePrice ~ SqrFeet + Bathrooms + Air + AirSqrFeet, data = df)
+summary(restricted)
+```
+
+```{r}
+anova(restricted)
+```
+
+## Testing The Interactions
+
+$H_0: \forall_{i \in \{2,6,7\}} \beta_i = 0\\H_A: \exists_{i \in \{2,6,7\}} \beta_i \neq 0$
+
+The test statistic is:
+
+
+**Note** we need calculate $SSE_R$ using the first model. So 
+
+$$
+SSE_R = 2900977 + 171+ 586 + 14478 = 2916212
+$$
+
+$$
+\large F^* = \frac{\frac{SSE_R - SSE_F}{P_F - P_R}}{\frac{SSE_F}{n - P_F}} = \frac{\frac{2916212 - 2900977}{8-5}}{\frac{2900977}{521-8}} = \frac{5078.3333}{5654.9259}
+= 0.898
+$$
+
+The p-value for this test is:
+```{r}
+1 - pf(0.898, 3, 513)
+```
+
+
+## A third model
+```{r}
+third_model <- lm(SalePrice ~ SqrFeet + Bedrooms + Bathrooms + Air + AirSqrFeet, data = df)
+df$resid <- resid(third_model)
+df$fitted <- fitted(third_model)
+summary(third_model)
+```
+
+```{r}
+anova(third_model)
+```
+
+```{r}
+ggplot(df, aes(x = SqrFeet, y=resid)) + geom_point() + ylab("Residuals") + xlab("Fits") + ggtitle("Residual Vs Fits plot for SqrFeet") +  geom_hline(yintercept = 0, color = "grey")
+```
+
+```{r}
+ggplot(df, aes(x = Bedrooms, y=resid)) + geom_point() + ylab("Residuals") + xlab("Fits") + ggtitle("Residual Vs Fits plot for Bedrooms") +  geom_hline(yintercept = 0, color = "grey")
+```
+
+```{r}
+ggplot(df, aes(x = Bathrooms, y=resid)) + geom_point() + ylab("Residuals") + xlab("Fits") + ggtitle("Residual Vs Fits plot for Bathrooms") +  geom_hline(yintercept = 0, color = "grey")
+```
+
+
+```{r}
+ggplot(df, aes(x = Air, y=resid)) + geom_point() + ylab("Residuals") + xlab("Fits") + ggtitle("Residual Vs Fits plot for Air") +  geom_hline(yintercept = 0, color = "grey")
+```
+
+```{r}
+ggplot(df, aes(x = AirSqrFeet, y=resid)) + geom_point() + ylab("Residuals") + xlab("Fits") + ggtitle("Residual Vs Fits plot for AirSqrFeet") +  geom_hline(yintercept = 0, color = "grey")
+```
+
+## Partial $R^2$
+
+```{r}
+model_reduced <- lm(SalePrice ~ SqrFeet + Bathrooms + Air + AirSqrFeet, data = df)
+model_full <- lm(SalePrice ~ SqrFeet + Bedrooms + Bathrooms + Air + AirSqrFeet, data = df)
+```
+
+```{r}
+anova(model_full)
+```
+
+```{r}
+anova(model_reduced)
+```
+$$
+R^2 = \frac{SSE_R - SSE_F}{ SSE_R} = \frac{2950563 - 2901734}{2950563}= 0.016549
+$$
+
+This would be interpreted as the bedrooms predictor explains 1.65% of the variation in sales price that is not explained by sqrfeet, bathrooms, air, and airsqrfeet.

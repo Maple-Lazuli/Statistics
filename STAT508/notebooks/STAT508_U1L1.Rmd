@@ -1,0 +1,195 @@
+---
+title: "U1L1 - Data Viz and Data Wrangling"
+output: html_document
+date: "August 21, 2023"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+library(palmerpenguins)
+
+#Load Datasets
+
+```
+
+## Example - Common visualizations
+
+The following illustrates some common types of plots and the corresponding code. The examples require the `dplyr` and `ggplot2` libraries, both of which are loaded as part of the `tidyverse`. The examples also `penguins` data set from the `palmerpenguins` library.
+
+```{r}
+ggplot(data = penguins, mapping = aes(x = species)) +
+  geom_bar(fill = "white", color = "black") +
+  labs(x = "Species",
+       y = "Number of Penguins",
+       title = "Penguin Species in Palmer Penguins Dataset")
+
+#NOTE: Inside aes(), no y axis is specified. This is because the y axis is not a variable contained in the dataset. In a bar plot, the y axis is the count which is determined by the geom_bar procedure
+```
+
+```{r}
+ggplot(data = starwars, mapping = aes(x = height)) + 
+  geom_histogram(binwidth = 20, color = "black", fill = "white") +
+  labs(x = "Height (in Centimeters)",
+       y = "Count",
+       title = "Character Heights in Star Wars")
+#NOTE: Inside aes(), no y axis is specified. This is because the y axis is not a variable contained in the dataset. In a histogram, the y axis is the count which is determined by the geom_histogram procedure
+```
+
+```{r}
+ggplot(data = starwars, mapping = aes(x = height)) + 
+  geom_density() +
+  labs(x = "Height (in Centimeters)",
+       y = "Density",
+       title = "Character Heights in Star Wars")
+```
+
+```{r}
+ggplot(data = starwars, mapping = aes(x = height, y = mass)) +
+  geom_point(shape = 5) +
+  labs(title = "Weight vs. Height for Characters in Star Wars",
+       x = "Height (in Centimeters)", y = "Weight (in Kilograms)")
+```
+
+```{r}
+ggplot(data = penguins, mapping = aes(x = sex, y = body_mass_g)) +
+  geom_boxplot() +
+  labs(title = "Body Mass vs. Sex for Palmer Penguins",
+       x = "Sex of Penguin", 
+       y = "Body Mass (in Grams)")
+```
+
+## Example - Loading and previewing a dataset from a package
+```{r}
+data(penguins)
+glimpse(penguins)
+```
+
+## Example - Layers of ggplot demonstration
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+## Example - Using aesthetics
+```{r}
+
+```
+
+
+## Example - Faceting using two categorical variables
+```{r}
+ggplot(penguins, aes(x = bill_length_mm, y = bill_depth_mm)) + 
+  geom_point(shape = 5) +
+  facet_grid(species ~ sex) +
+  labs(x = "Bill Length (in mm)",
+       y = "Bill Depth (in mm)")
+```
+
+## Example - Faceting using one categorical variable
+```{r}
+ggplot(penguins, aes(x = bill_length_mm, y = bill_depth_mm)) + 
+  geom_point(shape = 5) +
+  facet_grid(. ~ species) +
+  labs(x = "Bill Length (in mm)",
+       y = "Bill Depth (in mm)")
+
+```
+
+## Example - Supporting data visualization with numerical summaries
+
+#### Part a 
+
+#### Part b - Incorrect Code
+
+```{r}
+penguins %>%
+  group_by(species) %>%
+  summarize(N = n(),
+            MeanMass = mean(body_mass_g),
+            MedianMass = median(body_mass_g),
+            StdDevMass = sd(body_mass_g))
+```
+
+#### Part b - Corrected
+```{r}
+penguins %>%
+  group_by(species) %>%
+  summarize(N = n(),
+            MeanMass = mean(body_mass_g),
+            MedianMass = median(body_mass_g),
+            StdDevMass = sd(body_mass_g))
+```
+
+## Part c
+
+
+## Example - Alternative methods for finding the summary statistics
+```{r}
+#Alternative Method
+
+#Create dataset for each species and calculate values; repeat for each species
+df1 <- filter(penguins, species == "Adelie")
+nrow(df1)
+mean(df1$body_mass_g, na.rm = TRUE)
+median(df1$body_mass_g, na.rm = TRUE)
+sd(df1$body_mass_g, na.rm = TRUE)
+
+df2 <- filter(penguins, species == "Chinstrap")
+nrow(df2)
+mean(df2$body_mass_g, na.rm = TRUE)
+median(df2$body_mass_g, na.rm = TRUE)
+sd(df2$body_mass_g, na.rm = TRUE)    
+
+df3 <- filter(penguins, species == "Gentoo")
+nrow(df3)
+mean(df3$body_mass_g, na.rm = TRUE)
+median(df3$body_mass_g, na.rm = TRUE)
+sd(df3$body_mass_g, na.rm = TRUE)
+```
+
+
+## Example - dplyr practice in R
+
+#### Part a
+```{r}
+
+```
+
+
+#### Part b
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

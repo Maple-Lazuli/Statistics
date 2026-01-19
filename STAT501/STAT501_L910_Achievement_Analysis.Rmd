@@ -31,8 +31,104 @@ library(qqplotr)
 library(tidyr)
 library(reactable)
 library(openxlsx)
+library(faraway) # for lack of fit
 library(nortest) # For anderson-darling test
 library(lmtest) # needed for Breusch-Pagan test
 ```
 
-# Drill Data Analysis
+# Achievement Analysis
+
+## Data and Background
+
+An experiment was conducted to gain more knowledge about the interdependence between 10 randomly chosen students' emotional stability (X, the predictor variable) and the student's score on an achievement test (Y, the response variable).
+
+```{r}
+df <- read.csv("~/Downloads/HW7Achievement.csv")
+head(df)
+```
+
+```{r}
+ggplot(df, aes(x = Emotion, y = Achievement)) + geom_point() + ylab("Achievement") + xlab("Emotion") + ggtitle("Scatterplot of Emotion VS Achievement")
+
+```
+Since the relationship appears to be quadratic, transform the emotion feature using dplyr and fit the model.
+
+```{r}
+df <- df %>% mutate(EmotionSQ = Emotion*Emotion)
+model<- lm(Achievement ~ Emotion + EmotionSQ, data = df)
+```
+
+```{r}
+summary(model)
+```
+
+```{r}
+anova(model)
+```
+
+There are a lot of steps to get the LoF Numbers...
+
+```{r}
+df$X1f <- factor(df$Emotion)
+df$X2f <- factor(df$EmotionSQ)
+pure.error.model <- lm(Achievement ~ X1f, data=df)
+summary(pure.error.model)
+```
+
+```{r}
+# SSE of full model
+SSE_full <- sum(resid(model)^2)
+
+# SSE of pure error model
+SSE_pure <- sum(resid(pure.error.model)^2)
+
+# Lack-of-Fit SS
+SS_LOF <- SSE_full - SSE_pure
+
+# Degrees of freedom
+df_LOF <- df.residual(model) - df.residual(pure.error.model)
+df_PE  <- df.residual(pure.error.model)
+
+# Mean Squares
+MS_LOF <- SS_LOF / df_LOF
+MS_PE  <- SSE_pure / df_PE
+
+# F-statistic
+F_LOF <- MS_LOF / MS_PE
+
+# p-value
+p_LOF <- pf(F_LOF, df_LOF, df_PE, lower.tail = FALSE)
+
+# Show results
+cat("Lack-of-Fit F =", F_LOF, "with df =", df_LOF, "and", df_PE, "\n")
+cat("p-value =", p_LOF, "\n")
+```
+
+Predicting new values:
+
+```{r}
+predict(model, data.frame(Emotion=25, EmotionSQ = 25^2), interval = "predict", level = 0.95)
+```
+
+```{r}
+MSE <- 101.16
+SSTO <- 13369.3
+n <- 46
+p <- 3
+SSE <- 4613.0
+
+#Note that R's log is the natural log and log10() has to be use for the base10 log
+aic <- n * log(SSE) - n * log(n) + 2*p
+bic <- n * log(SSE) - n * log(n) + p * log(n)
+rSQ <- 1 - (n - 1)/SSTO * (SSE)/(n - p)
+cp <- SSE/MSE - (n - 2 * p)
+cat("SSE: ", SSE, "\np: ",p, "\nn: ",n, "\nMSE: ", MSE, "\nSSTO: ", SSTO, "\nAIC", aic, "\nBIC", bic, "\nR Squared: ", rSQ, "\nCp: ", cp)
+```
+
+$$
+\Large \textbf{Metrics For Model: $\hat{Y}_h = \beta_0 + \beta_2X_2$} \\
+\large AIC_p = n \ln(SSE) - n\ln(n) + 2p = 46\ln(5094) - 46\ln(46) + 2(2) = 220.5302 \\
+\large BIC_p = n \ln(SSE) - n\ln(n) + p\ln(n) = 46\ln(5094) - 46\ln(46) + (2)\ln(46) = 224.1874 \\
+\large R^2_{adj} = 1 - \frac{n - 1}{SSTO}\times \frac{SSE}{n-p} =1 - \frac{46-1}{13369} \times \frac{5094}{46 - 2} = 0.6103\\
+\large C_p = \frac{SSE_p}{MSE_{all}}- (n - 2p) = \frac{5094}{101.16} - (46 - 2(2)) = 8.355872
+$$

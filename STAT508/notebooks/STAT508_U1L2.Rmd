@@ -1,0 +1,511 @@
+---
+title: "U1L2 - Principal Component Analysis"
+output: html_document
+date: "August 28, 2023"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+library(GGally) #used for quickly creating all univariate and bivariate EDA plots
+library(gridExtra) #used for orgainzing ggplot objects into a grid
+library(factoextra) #Used for PCA plots
+library(broom) #useful for creating plot of loadings when performing PCA
+library(ISLR2) #used for USArrests dataset
+library(ggrepel) #used to avoid overlapping text in some PCA plots
+
+#Load Datasets
+setwd("/home/maple/CodeProjects/Statistics/STAT508/notebooks")
+nba_full <- read.csv("../sample_data/L02_NBA222.csv")
+
+#User-defined Functions
+find_intersection <- function(x1, x2, slope){
+  #This function finds the ordered pair (x1new,x2new) at which a 2D point (x1,x2)   would project onto a line passing through the origin with the given slope
+  
+  perpslope <- -1/slope
+  x1new <- (x1 + slope * x2)/2
+  x2new <- slope*x1new
+  return(c(x1new,x2new))
+}
+```
+
+
+## Example - Visualizing of NBA Data (Data Prep)
+```{r}
+#Subset the data to include TEAM name and 7 team statistics
+nba <-
+  nba_full %>% 
+  select(TEAM, W, L, PTS, FGM, AST, TOV, STL)
+```
+
+## Example - Visualizing of NBA Data (Data Prep) Part d.
+```{r}
+#Create univariate and bivariate plots for 7 teams statistics mentioned in the problem (which are stored in columns 2 through 8)
+ggpairs(data = nba, columns = 2:8, progress = FALSE)
+```
+
+## Example - Visualizing of NBA Data (Data Prep) Part e 
+```{r}
+#Explore the relationship between wins, points, field goals made, and steals
+ggplot(data = nba, mapping = aes(x = W, y = PTS, color = FGM, size = STL)) +
+  geom_point() +
+  labs(x = "Wins",
+       y = "Points Per Game",
+       color = "Fields Goals Made per Game",
+       size = "Steals per Game")
+```
+
+## Example - Genrarting a Toy Dataset
+```{r}
+#Create a "Toy1" dataset called Toy1 consisting of variables x1 and x2
+x1 <- c(-3,-2.5,-2,-1.5,-1,-.5,0,-.47,-.98,-1.58,-2.02,-2.5,-2.9)
+x2 <- c(1,1.3,1.45,1.5,1.45,1.3,1, .7,.55,.5,.55,.7,0.98)
+Toy1 <- data.frame(x1 = x1, x2 = x2)
+
+#Create a Rotation Matrix
+R <- matrix(c(cos(pi/4), -sin(pi/4), sin(pi/4), cos(pi/4)),
+            nrow=2,ncol=2,byrow=TRUE)
+
+#Rotate Toy1 to create Toy2; The matrix multiplication uses the operator %*% and requires Toy1 to be a matrix instead of a data frame
+Toy2 <- as.matrix(Toy1)%*%R
+
+#Plot Toy2 - ggplot requires data to be a data frame
+ggplot(data = as.data.frame(Toy2), mapping = aes(x = V1, y = V2)) +
+  geom_point() +
+  geom_hline(yintercept = 0, color = "black") +
+  geom_vline(xintercept = 0, color = "black") +
+  scale_x_continuous(limits=c(-3.1,3.1)) + 
+  scale_y_continuous(limits=c(-3.1,3.1)) +
+  coord_fixed(ratio = 1) +
+  annotate("text", x = 2.9, y = 0.3, 
+           label = "X1") +
+  annotate("text", x = 0.3, y = 2.9, 
+           label = "X2") +
+  theme(axis.title.x=element_blank(), #remove x axis title
+        axis.title.y=element_blank())
+```
+
+## Example - Interpreting Covariance Matrix for Toy Dataset 
+```{r}
+#Find the covariance matrix for Toy2
+cov(Toy2)
+```
+
+```{r}
+#Create a centered version of Toy2 
+Toy2_c <- scale(Toy2, center = TRUE, scale = FALSE)
+
+#Visualize Toy2 for the lecture notes
+ggplot(data = as.data.frame(Toy2_c), mapping = aes(x = V1, y = V2)) +
+  geom_point() +
+  labs(x = "X1", y = "X2") +
+  geom_hline(yintercept = 0, color = "black") +
+  geom_vline(xintercept = 0, color = "black") +
+  scale_x_continuous(limits=c(-3.1,3.1)) + 
+  scale_y_continuous(limits=c(-3,3)) +
+  coord_fixed(ratio = 1) +
+  annotate("text", x = 2.9, y = 0.3, 
+           label = "X1") +
+  annotate("text", x = 0.3, y = 2.9, 
+           label = "X2") +
+  theme(axis.title.x=element_blank(), #remove x axis title
+        axis.title.y=element_blank())
+```
+
+
+## Example - Scalar Projection 
+```{r}
+#This code generates the plot given in the Scalar Projection example
+ggplot(data = NULL) +
+  geom_point(aes(x = 1/sqrt(2), y = 1/sqrt(2)), size = 2) +
+  geom_point(aes(x = 0.2, y = 0.7), size = 2) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  theme(axis.title.x=element_blank(), #remove x axis title
+        axis.ticks.x=element_blank(), #remove x axis ticks
+        axis.title.y=element_blank(),  
+        axis.ticks.y=element_blank()) +
+  annotate("text", x =- 0.03, y = -0.03, 
+           label = "O") +
+  annotate("text", x = (1/sqrt(2)) + 0.03, y = (1/sqrt(2)) + 0.03, 
+           label = "v", fontface = "bold") +
+  annotate("text", x = 0.23, y = 0.73, 
+           label = "x", fontface = "bold") +
+  annotate("segment", x = 0, xend = 1/sqrt(2), y = 0, yend = 1/sqrt(2),
+           color = "black", linewidth = 0.3, arrow = arrow()) 
+```
+
+## Example - Using a Toy 2D Dataset to Illustrate the PCA Process – Step 1 
+```{r}
+#Center Toy2 so that columns are mean 0. 
+Toy2_c <- scale(Toy2, center = TRUE, scale = FALSE)
+
+plot_Toy2_c <-
+  ggplot(data = as.data.frame(Toy2_c), mapping = aes(x = V1, y = V2)) +
+  geom_point() +
+  geom_hline(yintercept = 0, color = "black") +
+  geom_vline(xintercept = 0, color = "black") +
+  scale_x_continuous(limits=c(-1.65,1.65)) + 
+  scale_y_continuous(limits=c(-1.65,1.65)) +
+  coord_fixed(ratio = 1) +
+  annotate("text", x = 1.6, y = 0.25, 
+           label = "X1") +
+  annotate("text", x = 0.3, y = 1.6, 
+           label = "X2") +
+  theme(axis.title.x=element_blank(), #remove x axis title
+        axis.title.y=element_blank())
+  
+plotH <- 
+  plot_Toy2_c +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_segment(x = Toy2_c[,1],
+               y = Toy2_c[,2],
+               xend = Toy2_c[,1],
+               yend = 0,
+               color = "blue",
+               linetype = "dashed") +
+  geom_point(aes(x = Toy2_c[,1], y = 0), color="blue",shape = 15, size = 2) 
+
+plotV <- 
+  plot_Toy2_c +
+  geom_vline(xintercept = 0, color = "red") +
+  geom_segment(x = Toy2_c[,1],
+               y = Toy2_c[,2],
+               xend = 0,
+               yend = Toy2_c[,2],
+               color = "blue",
+               linetype = "dashed") +
+  geom_point(aes(x = 0, y = Toy2_c[,2]), color="blue",shape = 15, size = 2) 
+
+#Perform PCA to find 1st PC
+prcomp_res <- prcomp(Toy2_c)
+temp_df <- t(apply(Toy2_c, 1, function(x) find_intersection(x[1], x[2], prcomp_res$rotation[2,1]/prcomp_res$rotation[1,1])))
+
+plotD <-
+  plot_Toy2_c + 
+  geom_abline(slope = prcomp_res$rotation[2,1]/prcomp_res$rotation[1,1], 
+              intercept = 0,
+              color = "red") + 
+  geom_segment(x = Toy2_c[,1],
+               y = Toy2_c[,2],
+               xend = temp_df[,1],
+               yend = temp_df[,2],
+               color = "blue",
+               linetype = "dashed") +
+  geom_point(aes(x = temp_df[,1], y = temp_df[,2]), color="blue",shape = 15, size = 2) 
+
+#Arragnge the 4 plots into a two by two-grid
+grid.arrange(plot_Toy2_c, plotH, plotV, plotD, ncol = 2)
+```
+
+## Example - Using a Toy 2D Dataset to Illustrate the PCA Process – Step 1 Rotation
+```{r}
+#This code rotates the plot show that the 1st PC direction is the horizontal axis
+plotD_rot <-
+  ggplot(data = as.data.frame(prcomp_res$x),
+       mapping = aes(x = PC1, y = PC2)) +
+  geom_point(aes(x = PC1, y = 0), color="blue", shape = 15, size = 2) + 
+  geom_hline(yintercept = 0, color = "red") +
+  geom_vline(xintercept = 0, color = "black") +
+  scale_x_continuous(limits=c(-1.65,1.65)) + 
+  scale_y_continuous(limits=c(-1.65,1.65)) +
+  coord_fixed(ratio = 1) +
+  labs(y = "") +
+  #annotate("text", x = -0.9, y = -1.2, 
+  #         label = paste("The variance of \n the projected points \nis ",
+  #                       round(var(prcomp_res$x[,1]), digits = 2)), size = 2.2) +
+  annotate("text", x = 1.5, y = 0.25, 
+           label = "PC1") +
+  theme(axis.title.x=element_blank(), #remove x axis title
+        axis.title.y=element_blank())
+
+plotD_rot
+```
+
+
+## Example - Using a Toy 2D Dataset to Illustrate the PCA Process – Step 2
+```{r}
+#Create a plot showing the 1st PC
+plot_Toy2_c + 
+  geom_abline(slope = prcomp_res$rotation[2,1]/prcomp_res$rotation[1,1], 
+              intercept = 0,
+              color = "red") 
+```
+
+## Example - Investigation of PCA Formulas
+```{r}
+#Create a "Toy1" dataset called Toy1 consisting of variables x1 and x2
+x1 <- c(-3,-2.5,-2,-1.5,-1,-.5,0,-.47,-.98,-1.58,-2.02,-2.5,-2.9)
+x2 <- c(1,1.3,1.45,1.5,1.45,1.3,1, .7,.55,.5,.55,.7,0.98)
+Toy1 <- data.frame(x1 = x1, x2 = x2)
+
+#Create a Rotation Matrix
+R <- matrix(c(cos(pi/4), -sin(pi/4), sin(pi/4), cos(pi/4)),
+            nrow=2,ncol=2,byrow=TRUE)
+
+#Rotate Toy1 to create Toy2; The matrix multiplication uses the operator %*% and requires Toy1 to be a matrix instead of a data frame
+Toy2 <- as.matrix(Toy1)%*%R
+```
+
+#### Part a - Center the dataset 
+```{r}
+
+```
+
+#### Part b - Calculate the sample covariance matrix
+```{r}
+#Calculate sample covariance using formula
+
+
+#Use cov() function to verify our calculation
+cov(Toy2)
+```
+
+#### Part c - Find the eigenvalues and eigenvectors of the covariance matrix
+```{r}
+#Find the eigenvalues and eigenvectors
+
+```
+
+Note that the eigenvectors are the columns of `eigenInfo$vectors`.
+
+Eigenvectors are unique up to a sign flip (i.e., multiply each element in the vector by -1).
+
+#### Part d - Plot the centered data and add the eigenvectors 
+```{r}
+
+```
+
+#### Part e - Project the original data onto the PC’s (i.e., find the scores) and plot
+```{r, eval = FALSE}
+#Calculate the coordinates and project the data
+
+
+#Visualize the result
+ggplot(data = as.data.frame(Z),
+       mapping = aes(x = V1, y = V2)) +
+  geom_point() +
+  labs(x = "PC1",
+       y = "PC2")
+```
+
+#### Part f - Find the covariance matrix for Z
+```{r}
+#Find the covariance of Z
+
+```
+
+It is not surprising that the covariances are 0 (within machine precision) since the PC's are orthogonal (uncorrelated).
+
+The elements along the main diagonal of any covariance matrix are variances. In this context the main diagonal elements are the variance of the projected points in each direction (the directions are the PC's).
+
+#### Part g - Verify that eigenvalues represent variance 
+```{r}
+
+```
+
+#### Part h - Find the proportion of variance explained by each PC
+```{r}
+
+```
+
+
+
+#### Part i - Use the prcomp() function to find the eigenvalues, eigenvectors, and projected data. 
+```{r, eval = FALSE}
+#Use prcomp to perform PCA
+
+#Eigenvalues
+
+#Eigenvectors
+
+#Projected Data
+
+#Plot projected Data
+ggplot(data = as.data.frame(prcomp_res$x),
+       mapping = aes(x = , y = )) +
+  geom_point() +
+  labs(x = "PC1",
+       y = "PC2")
+```
+
+
+#### Part j - Compare eigenvalues, eigenvectors from the two methods
+```{r, eval = FALSE}
+#Compare eigenvalues
+eigenInfo$values
+prcomp_res$sdev^2
+
+#Compare eigenvectors
+eigenInfo$vectors
+prcomp_res$rotation
+```
+
+
+```{r, eval = FALSE}
+#Create plot showing eigenvectors from prcomp and from eigen
+ggplot(data = as.data.frame(Toy2c), mapping = aes(x = V1, y = V2)) + 
+  geom_point() + 
+  geom_segment(x = 0, y = 0, 
+               xend = eigenInfo$vectors[1,1],
+               yend = eigenInfo$vectors[2,1],
+               arrow = arrow(length = unit(0.5, "cm"))) +
+  geom_segment(x = 0, y = 0, 
+               xend = eigenInfo$vectors[1,2],
+               yend = eigenInfo$vectors[2,2],
+               arrow = arrow(length = unit(0.5, "cm"))) +
+  geom_segment(x = 0, y = 0,
+               xend = prcomp_res$rotation[1,1],
+               yend = prcomp_res$rotation[2,1],
+               arrow = arrow(),
+               color = "red", linetype = "dashed") +
+  geom_segment(x = 0, y = 0,
+               xend = prcomp_res$rotation[1,2],
+               yend = prcomp_res$rotation[2,2],
+               arrow = arrow(),
+               color = "red", linetype = "dashed") +
+  coord_fixed()
+```
+
+
+## Example - PCA on US Arrests Data
+#### Preliminaries
+```{r}
+#Create a copy of the dataset in the environment
+data(USArrests)
+```
+
+#### Part a - Initial EDA
+```{r}
+#Generate all univariate and bivariate plots
+ggpairs(data = USArrests, progress = FALSE)
+
+#Calculate mean and standard deviation for the numeric variables
+USArrests %>%
+  summarize(MeanM = mean(Murder),
+            MeanA = mean(Assault),
+            MeanR = mean(Rape),
+            MeanUP = mean(UrbanPop),
+            sdM = sd(Murder),
+            sdA = sd(Assault),
+            sdR = sd(Rape),
+            sdUP = sd(UrbanPop))
+```
+
+#### Part b - Perform PCA using the standardized data
+```{r}
+USArrests_pca <- prcomp(x = USArrests, center = TRUE, scale. = TRUE)
+
+#Eigenvalues
+USArrests_pca$sdev^2
+
+#Eigenvectors 
+USArrests_pca$rotation
+
+#First 6 rows of Projected Data (also called the scores)
+head(USArrests_pca$x)
+```
+
+#### Part c - Proportion of the total variance explained 
+```{r}
+#Calculate the proportion of variance explained for each PC
+PVE <- USArrests_pca$sdev^2/sum(USArrests_pca$sdev^2)
+PVE
+```
+
+#### Part d - Create a scree plot
+```{r}
+#Create scree plot of PVE
+fviz_screeplot(X = USArrests_pca, 
+               geom = c("bar", "line"),
+               choice = "variance",
+               ncp = 4, #Controls number of PC's displayed (change for other datasets)
+               addlabels = TRUE #Adds percentages near points on plot
+               ) +
+  labs(x = "Principal Component",
+       y = "Percentage of Variance Explained") +
+  scale_y_continuous(limits = c(0,100))
+```
+
+#### Part e - Create a plot of the cumulative proportion of variance explained
+```{r}
+#Create a data frame for plotting
+cumPVE_df <- data.frame(PC = 1:ncol(USArrests), CumVarExp = cumsum(PVE))
+
+#Create Cumulative Proportion of Variance Explained Plot
+ggplot(data = cumPVE_df, mapping = aes(x = PC, y = CumVarExp)) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(limits = c(0,1)) +
+  labs(x = "Principal Components",
+       y = "Cumulative Proportion of Variance Explained") +
+  theme_bw()
+```
+
+#### Part g - Visualization of points projected onto the first two PC’s 
+```{r}
+ggplot(data = as.data.frame(USArrests_pca$x), 
+       mapping = aes(x = PC1, y = PC2)) +
+  geom_point() +
+  labs(x = paste("PC1 (", round(100*PVE[1], digits = 1), "%)", sep = ""),
+       y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = "")) 
+  #geom_label_repel(aes(label = State),
+                  #box.padding   = 0.35, 
+                  #point.padding = 0.5,
+                  #segment.color = 'grey50')
+```
+
+
+
+#### Part i - Visualize the loadings
+```{r}
+#Create plot of loadings
+tidy(USArrests_pca, matrix = "loadings") %>% #tidy is from the broom package
+  ggplot(aes(x = value, y = column)) +
+  facet_wrap(~ PC) + 
+  geom_col(aes(fill=column),show.legend = F)+
+  labs(x= "Loadings",y="Predictors")+
+  theme_bw()
+```
+
+#### Part j - Label the points using the state names
+```{r}
+#Create the 2D visualization but add the row names as labels on the points
+ggplot(data = as.data.frame(USArrests_pca$x), 
+       mapping = aes(x = PC1, y = PC2)) +
+  geom_point() +
+  labs(x = paste("PC1 (", round(100*PVE[1], digits = 1), "%)", sep = ""),
+       y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = "")) +
+  geom_text_repel(mapping = aes(label = row.names(USArrests),
+                  segment.color = 'grey50'))
+```
+
+#### Part k - Create the biplot
+```{r}
+fviz_pca_biplot(USArrests_pca, repel = TRUE,
+                col.var = "#2E9FDF", # Variables color
+                col.ind = "#696969"  # Individuals color
+                )
+```
+
+
+## Example - PCA on Centered (but not Scaled) US Arrests Data
+```{r}
+USArrests_pca_unscaled <- prcomp(x = USArrests, center = TRUE, scale. = FALSE)
+
+#Create plot of loadings
+tidy(USArrests_pca_unscaled, matrix = "loadings") %>% #tidy is from the broom package
+  ggplot(aes(x = value, y = column)) +
+  facet_wrap(~ PC) + 
+  geom_col(aes(fill=column),show.legend = F)+
+  labs(x= "Loadings",y="Predictors")+
+  theme_bw()
+```

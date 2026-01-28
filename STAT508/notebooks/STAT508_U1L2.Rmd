@@ -257,14 +257,20 @@ Toy2 <- as.matrix(Toy1)%*%R
 
 #### Part a - Center the dataset 
 ```{r}
-
+Toy2c <- scale(x = Toy2, center = TRUE, scale = FALSE)
 ```
+
+Calculate the sample covariance matrix:
+
+$$
+\hat{\sum} = \frac{1}{n - 1}X^TX
+$$
 
 #### Part b - Calculate the sample covariance matrix
 ```{r}
 #Calculate sample covariance using formula
-
-
+C <- (1 /(nrow(Toy2c) - 1)) * t(Toy2c) %*%  Toy2c
+C
 #Use cov() function to verify our calculation
 cov(Toy2)
 ```
@@ -272,7 +278,8 @@ cov(Toy2)
 #### Part c - Find the eigenvalues and eigenvectors of the covariance matrix
 ```{r}
 #Find the eigenvalues and eigenvectors
-
+eigenInfo <- eigen(x = C)
+eigenInfo
 ```
 
 Note that the eigenvectors are the columns of `eigenInfo$vectors`.
@@ -281,13 +288,25 @@ Eigenvectors are unique up to a sign flip (i.e., multiply each element in the ve
 
 #### Part d - Plot the centered data and add the eigenvectors 
 ```{r}
-
+ggplot(data = as.data.frame(Toy2c), aes(x = V1, y = V2)) +
+  geom_point() +
+  labs(x = "X1",
+       y = "X2") +
+  geom_segment(x = 0, y = 0,
+               xend = eigenInfo$vectors[1,1],
+              yend = eigenInfo$vectors[2,1],
+              arrow = arrow())+
+  geom_segment(x = 0, y = 0,
+               xend = eigenInfo$vectors[1,2],
+              yend = eigenInfo$vectors[2,2],
+              arrow = arrow()) +
+  coord_fixed()
 ```
 
 #### Part e - Project the original data onto the PC’s (i.e., find the scores) and plot
-```{r, eval = FALSE}
+```{r}
 #Calculate the coordinates and project the data
-
+Z <- Toy2c %*% eigenInfo$vectors
 
 #Visualize the result
 ggplot(data = as.data.frame(Z),
@@ -300,7 +319,9 @@ ggplot(data = as.data.frame(Z),
 #### Part f - Find the covariance matrix for Z
 ```{r}
 #Find the covariance of Z
-
+cov(Z)
+# Round the covariance matrix
+round(cov(Z), digits = 7)
 ```
 
 It is not surprising that the covariances are 0 (within machine precision) since the PC's are orthogonal (uncorrelated).
@@ -309,29 +330,34 @@ The elements along the main diagonal of any covariance matrix are variances. In 
 
 #### Part g - Verify that eigenvalues represent variance 
 ```{r}
-
+eigenInfo$values
+# eigen values are the variances of the projected point.
 ```
 
 #### Part h - Find the proportion of variance explained by each PC
+
+To findt he proportion of variance explained, divide each eigan value by the sum of the eigan values
 ```{r}
-
+PVE <- eigenInfo$values/sum(eigenInfo$values)
+PVE
 ```
-
+The first PC explains 87.2% of the total variance, while the second PC explains 12.8%
 
 
 #### Part i - Use the prcomp() function to find the eigenvalues, eigenvectors, and projected data. 
 ```{r, eval = FALSE}
 #Use prcomp to perform PCA
-
+prcomp_res <- prcomp(x = Toy2, center = TRUE, scale. = FALSE)
 #Eigenvalues
-
+prcomp_res$sdev^2
 #Eigenvectors
-
-#Projected Data
+prcomp_res$rotation
+#Projected Data gives us Z
+prcomp_res$x
 
 #Plot projected Data
 ggplot(data = as.data.frame(prcomp_res$x),
-       mapping = aes(x = , y = )) +
+       mapping = aes(x = PC1, y = PC2)) +
   geom_point() +
   labs(x = "PC1",
        y = "PC2")

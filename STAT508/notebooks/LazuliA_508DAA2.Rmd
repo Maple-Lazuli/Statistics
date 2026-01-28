@@ -1,0 +1,201 @@
+---
+title: "STAT508_DAA2"
+author: Ada Lazuli
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+
+```{r, message=FALSE}
+library(broom)
+library(dplyr)
+library(factoextra) 
+library(GGally)
+library(ggplot2)
+library(ggrepel)
+library(gridExtra)
+Pizza <- read.csv("../sample_data/L02_Pizza.csv")
+```
+
+## Problem 1 - Preparing for PCA
+### Part a - Check for missing values
+```{r}
+apply(Pizza, 2, function(x) sum(is.na(x)))
+```
+
+Based on the R output, there are no missing values.
+
+
+### Part b - Create Pizza_num which contains numeric variables of interest
+```{r}
+Pizza_num <- Pizza %>% select(mois, prot, fat, ash, sodium, carb, cal)
+```
+
+### Part c - Calculate the variances and discuss
+
+```{r}
+round(apply(Pizza_num, 2, function(x) var(x)), 6)
+```
+
+The `carb` column has the highest variance of 325.07. The next two closest columns of `mois` and `fat` have similar variances of 91.26 and 80.56, respectively. 
+
+The `prot` column has roughly half the variance of `fat` with a variance of 41.40.
+
+Lastly, `ash`, `sodium`, and `cal` have similar variances ranging from 0.14 to 1.62.
+
+
+### Part d - Create all univariate and bivariate plots
+
+```{r}
+ggpairs(Pizza_num, progress = FALSE)
+```
+From the univariate and bivariate plots, it seems that the strongest positive correlation 
+is between sodium and fat, with a correlation coefficient of 0.933. The density plot for
+mois suggests that the distribution is bimodal. Lastly, the scatter plot between prot and sodium
+appears have an inverse parabolic shape. 
+
+## Problem 2 - Performing PCA
+### Part a - Perform PCA 
+
+```{r}
+prcomp_res <- prcomp(x = Pizza_num, center = TRUE, scale. = TRUE)
+```
+
+The eigen values following the principle component analysis:
+```{r}
+prcomp_res$sdev^2
+```
+
+Similarly, the eigen vectors following the principle components:
+```{r}
+prcomp_res$rotation
+```
+
+### Part b - Visualize the proportion of variance explained
+
+```{r}
+PVE <- prcomp_res$sdev^2/sum(prcomp_res$sdev^2)
+
+fviz_screeplot(X = prcomp_res, 
+     geom = c("bar", "line"),
+     choice = "variance",
+     ncp = 7,
+     addlabels = TRUE) +
+  labs(x = "Principal Component",
+       y = "Percentage of Variance Explained") +
+  scale_y_continuous(limits = c(0,100))
+```
+
+```{r}
+cumPVE_df <- data.frame(PC = 1:ncol(Pizza_num), CumVarExp = cumsum(PVE))
+
+ggplot(data = cumPVE_df, mapping = aes(x = PC, y = CumVarExp)) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(limits = c(0,1)) +
+  labs(x = "Principal Components",
+       y = "Cumulative Proportion of Variance Explained") +
+  theme_bw()
+```
+The portion of total variance explained by each principle component is:
+
+1. Principle Component 1: 59.6%
+2. Principle Component 1: 32.7%
+3. Principle Component 1: 5.9%
+4. Principle Component 1: 1.4%
+5. Principle Component 1: 0.4%
+6. Principle Component 1: 0%
+7. Principle Component 1: 0%
+
+
+### Part c - Reducing dimensionality/Picking k
+
+From the scree plot, the first two principle components explain 92.3% of the total variability and will be used.
+
+### Part d - Create a plot of the loadings
+
+```{r}
+tidy(prcomp_res, matrix = "loadings") %>% 
+  filter(PC %in% c(1,2)) %>%
+  ggplot(aes(x = value, y = column)) +
+  facet_wrap(~ PC) + 
+  geom_col(aes(fill=column),show.legend = F)+
+  labs(x= "Loadings",y="Predictors")+
+  theme_bw()
+```
+
+
+### Part e - Determining the features that affect each PC
+
+Using 0.4 as a threshold for influence, principle component 1 is significantly influenced by:
+1. Fat
+2. Ash
+3. Sodium
+4. Carb
+
+Similarly, principle component 2 is significantly influenced by:
+1. Mois
+2. Cal
+
+
+### Part f - Create and interpret a biplot
+
+```{r}
+fviz_pca_biplot(prcomp_res, repel = TRUE,
+                col.var = "#2E9FDF",
+                col.ind = "#696969",
+                geom.ind = "point")
+```
+The first component contrasts carb the most negatively and has a positive value for the 
+remaining features. This contrast is reasonable in hindsight due to the high variance noticed in carb from 
+part a of the first problem.
+
+The second component contrasts cal and mois the most significantly. From the PCA, it seems to be the case that carbs, calories, and moisture are the most significant features in this data.
+
+
+### Part g - Visualization the projected data color coded by brand
+
+```{r}
+combined <- as.data.frame(prcomp_res$x)
+combined$Brand <- Pizza$brand
+ggplot(combined, aes(x = PC1, y = PC2, color = Brand)) +
+  geom_point() +
+  labs(x = paste("PC1 (", round(100*PVE[1], digits = 1), "%)", sep = ""),
+       y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = ""))
+```
+
+Looking at the plot, I would expect brand A to have the the least carbs, most calories, and to be relatively dry. To test this, I used boxplots for carb and 
+
+```{r}
+ggplot(Pizza, aes(x = carb, y = brand, color = brand)) + geom_boxplot() +
+  ylab("Pizza Brand") +
+  xlab("Carbohydrates") +
+  ggtitle("Comparison of Pizza Carbohydrates by Brand")
+```
+This boxplots show that brand A has some of the lowest carbohydrates, but other brands have similar quantities.
+
+```{r}
+ggplot(Pizza, aes(x = cal, y = brand, color = brand)) + geom_boxplot() +
+  ylab("Pizza Brand") +
+  xlab("Calories") +
+  ggtitle("Comparison of Pizza Calories by Brand")
+```
+The second set of boxplots show that brand A definitely has the most calories by a significant amount, comparies to the other brands.
+
+```{r}
+ggplot(Pizza, aes(x = mois, y = brand, color = brand)) + geom_boxplot() +
+  ylab("Pizza Brand") +
+  xlab("Moisture") +
+  ggtitle("Comparison of Pizza Moisture by Brand")
+```
+
+The last set of boxplots show that brand A has low moisture, but is not extreme in low moisture compared to other brands.
+
+This bivariate analysis shows that brand A tends to upper or lower ends of the quantitative features. However, the PCA plot with the brand color emphasizes how distinct brand A is compared to the other brands when several features are considered simultaneously. It would be difficult to notice this distinctness with a series of bivarate plots and demonstrates the utilitiy of PCA during exploratory data analysis. 
+
+

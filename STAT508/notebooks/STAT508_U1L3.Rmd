@@ -1,0 +1,424 @@
+---
+title: "U1L3 - Clustering"
+output: html_document
+date: ""
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+library(mvtnorm) #used for randomly generating data from multivariate normal
+library(factoextra)
+library(gridExtra)
+
+#Load Datasets
+WBC <- read.csv("/home/maple/CodeProjects/Statistics/STAT508/sample_data/L03_WBC.csv")
+#WBC <- read.csv("~/Library/CloudStorage/OneDrive-ThePennsylvaniaStateUniversity/PSU/Teaching/STAT508/Lectures/Data/L03_WBC.csv")
+```
+
+
+## Example - Simulate 2D Dataset
+```{r}
+#Create data frame with true centroids
+true_centroids <- matrix(c(0, 7, 0 ,7, 0, 0, 7, 7), ncol = 2, byrow = FALSE)
+
+#Randomly generate a dataset (requires mvtnorm package for rmvnorm function)
+set.seed(123) #set random number seed so that we all get the the same "random" values
+clust1 <- rmvnorm(8, mean = true_centroids[1, ], sigma = diag(2)) 
+clust2 <- rmvnorm(12, mean = true_centroids[2, ], sigma = diag(2))
+clust3 <- rmvnorm(8, mean = true_centroids[3, ], sigma = diag(2))
+clust4 <- rmvnorm(7, mean = true_centroids[4, ], sigma = diag(2))
+set.seed(NULL)
+
+df <- as.data.frame(rbind(clust1, clust2, clust3, clust4))
+remove(clust1, clust2, clust3, clust4)
+
+#Plot the dataset
+Toy_2DKmeansRraw <-
+  ggplot(data = df, mapping = aes(x = V1, y = V2)) +
+  geom_point(color = "orange") + 
+  geom_point(data = as.data.frame(true_centroids), 
+             color = "black", size = 5, shape = 17)
+
+Toy_2DKmeansRraw
+```
+
+
+## Example - K-means on Simulated Dataset Using K = 4
+### Part a - Implement K-means
+```{r}
+#Run k-means 
+set.seed(123)
+kmeansRes4c <- kmeans(x = df, centers = 4, iter.max = 10, nstart = 15)
+#View Results
+kmeansRes4c
+```
+
+
+### Part b - Find the number of observations assigned to each cluster
+```{r}
+# view cluster assignments
+
+table(kmeansRes4c$cluster)
+```
+
+
+### Part c - Compare estimated centroids to true centroids
+```{r}
+#Estimated Centroids
+kmeansRes4c$centers
+
+#True Centroids (created when simulating data)
+true_centroids 
+```
+
+### Part d - Plot the cluster assignments
+```{r}
+#Create a data frame that has the coordinates and the cluster assignments
+df2 <- df%>% mutate(clust = kmeansRes4c$cluster)
+#Create visualization
+ggplot(df2, aes(V1, V2, color = as.factor(clust))) + geom_point()
+```
+
+### Part e - Extract within-cluster variation for each cluster
+```{r}
+kmeansRes4c$withinss
+```
+
+### Part f - Extract total within-cluster variation
+```{r}
+kmeansRes4c$tot.withinss
+```
+
+## Example - K-means on Simulated Dataset Using K = 3
+### Part a - Perform K-means with K=3 and visualize the result
+```{r}
+set.seed(123)
+kmeansRes3c <- kmeans(x = df, centers = 3, iter.max = 10, nstart = 15) 
+set.seed(NULL)
+
+
+#Create a data frame that has the coordinates and the cluster assignments
+df2 <-
+  df %>%
+  mutate(cluster = kmeansRes3c$cluster)
+
+#Create visualization
+ggplot(data = df2, mapping = aes(x = V1, y =V2, 
+                                 color = as.factor(cluster),
+                                 shape = as.factor(cluster))) +
+  geom_point() +
+  labs(color = "Cluster Assignment",
+       shape = "Cluster Assignment")
+
+```
+
+### Part b - Compare Total Within-cluster Variation Values between K=3 and K=4
+```{r, eval = FALSE}
+#Within-cluster variation (K=4)
+kmeansRes4c$withinss
+#Within-cluster variation (K=3)
+kmeansRes3c$withinss
+
+#Total Within-cluster Variation (K=4)
+kmeansRes4c$tot.withinss
+#Total Within-clustere Variation (K=3)
+kmeansRes3c$tot.withinss
+```
+
+
+## Example - Creating Elbow Plot for K-means Using a Function and Picking K
+```{r}
+#Use built in function from factoextra
+fviz_nbclust(x = df, FUNcluster = kmeans, 
+             method = "wss", k.max = 10, 
+             nstart = 15)
+```
+
+## Example - Creating Elbow Plot for K-means Using a Loop and Picking K
+```{r}
+#Initialize
+maxK <- 10
+totalWSS_vec <- rep(NA, maxK) #Repeats NA maxK times and stores as vector totalWSS_vec
+
+#Loop for Perfoming K-means for different values of K
+for(i in 1:maxK){
+  #Do k means
+  set.seed(123)
+  temp_kmeans <- kmeans(x = df, centers = i, nstart = 15, iter.max  = 10)
+  set.seed(NULL)
+  
+  #Extra total WSS
+  totalWSS_vec[i] <- temp_kmeans$tot.withinss
+  
+  print(i)
+}
+```
+
+```{r}
+#Create a data frame for plotting
+temp_df <- data.frame(K = 1:maxK, TotalWSS = totalWSS_vec)
+
+#Create Plot 
+ggplot(data = temp_df, mapping = aes(x = K, y = TotalWSS)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Number of Clusters",
+       y = "Total Within-sum-of-squares") +
+  scale_x_continuous(breaks = 1:10, limits = c(1, 10))
+```
+
+## Example - Hierarchical Clustering on Simulated Dataset
+### Part a - Hierarchcial clustering using Euc. distance and single linkage
+```{r}
+#Calculate dissimilarity using dist
+eucDist <- stats::dist(x = df, method = "euclidean")
+
+#Perform hierarchical clustering
+
+hcSing <- hclust(d = eucDist, method = "single")
+```
+
+### Part b - Create a dendrogram of single linkage results
+```{r}
+fviz_dend(x = hcSing) +
+  labs(subtitlee = "Single Linkage")
+```
+
+### Part c - Modify the dendrogram to illustrate 4 clusters
+```{r}
+fviz_dend(x = hcSing, k = 4, rect = TRUE) + 
+  labs(subtitlee = "Single Linkage")
+```
+
+### Part d - Extract cluster assignments
+```{r}
+#Extract cluster assignments
+hcSingClust <- cutree(tree = hcSing, k = 4)
+
+#Add the cluster assignments to df and store the result as a new dataset df2
+df2 <-
+  df %>%
+  mutate(hcCluster = hcSingClust)
+```
+
+### Part e - Complete linkage dendrogram for simulated dataset
+```{r}
+#Create Dendrogram with 2 Clusters using Single Linkage
+SinDen2 <-
+  fviz_dend(x = hcSing, k = 2 , rect = TRUE) +
+  labs(subtitle = "Single Linkage K = 2")
+
+
+#Calculate dissimilarity using dist
+eucDist <- stats::dist(x = df, method = "euclidean")
+
+#Perform hierarchical clustering using Complete linkage
+hcComp <- hclust(d = eucDist, method = "complete")
+
+#Create Dendrogram with 2 Clusters using Complete Linkage
+ComDen2 <-
+  fviz_dend(x = hcComp, k = 2, rect = TRUE) +
+  labs(subtitle = "Complete Linkage K = 2")
+
+#Plot the dendrograms side-by-side 
+grid.arrange(SinDen2, ComDen2, ncol=2)
+```
+
+### Part f - Elbow plot for single linkage hierarchical clustering
+```{r}
+fviz_nbclust(x = df, 
+             FUNcluster = hcut, 
+             method = "wss", 
+             k.max = 15,
+             hc_func = "hclust", 
+             hc_metric = "euclidean",
+             hc_method = "single") +
+  labs(subtitle ="Single Linkage")
+```
+
+
+## Example - K-means on WBC Data
+### Part a - Subset the data
+```{r}
+#Subset the data by removing the id and diagnosis variables
+wbcNum <- WBC %>% select(-id, -diagnosis)
+```
+
+### Part b - Find the variance of the numeric variables
+```{r}
+#Find the variance of each numeric variable
+(round(apply(X = wbcNum, MARGIN = 2, FUN = var), digits = 3))
+```
+
+### Part c - Standardize the numeric variables
+```{r}
+#Standardize the data
+wbcScaled <- scale(x = wbcNum, center = TRUE, scale = TRUE)
+```
+
+
+### Part d - Use K-means and determine the optimal number of clusters
+```{r}
+set.seed(123)
+fviz_nbclust(x = wbcScaled, FUNcluster = kmeans, method = "wss",
+             k.max = 30,
+             nstart = 25,
+             iter.max = 20) +
+  labs(subtitle = "K-means")
+```
+
+Interpretation of Plot
+
+- It is not obvious how many clusters should be used. Remember, we look for the elbow. We hope to see a large drop followed by a leveling off of the curve.
+
+- There is a large drop as we go from K = 1 to K = 2, which suggest 2 clusters is likely a better option than 1 cluster.
+
+- There is a smaller but still sizable drop as we go from 2 to 3 clusters. 
+
+- The decrease in Total WSS is smaller yet, but maybe still sizable, as we go from 3 to 4 and 4 to 5.
+
+- As we go from 5 to 6 and beyond, the decreases become steadily smaller which suggests a leveling off off of the plot.
+
+- Based on this interpretation, I might consider values of K ranging from 2 to 5.
+
+
+## Example - PCA on WBC Data
+```{r}
+#Perform PCA on standardized data (name result wbcPCA)
+wbcPCA <- prcomp(x = wbcScaled, center = TRUE, scale. = TRUE)
+#Calculate PVE (used in future plots)
+# portion of variance explained.
+PVE <- wbcPCA$sdev^2/sum(wbcPCA$sdev^2)
+round(PVE, digits = 3)
+```
+
+
+## Example - Connecting PCA and K-means
+### Part a - Create PCA visualization coded by diagnosis
+```{r}
+#Create a data frame (for use in ggplot) that has PC scores for 1st 2 PC's
+temp_df <- as.data.frame(x = wbcPCA$x[, 1:2])
+#Add diagnosis to the plotting dataset (temp_df)
+temp_df <- temp_df %>% mutate(diagnosis = WBC$diagnosis)
+#Create Plot
+ggplot(data = temp_df, aes (x = PC1, y = PC2, color = diagnosis)) +
+  geom_point(alpha = .5) +
+  labs(x = paste("PC1 (", round(100*PVE[1], digits = 1), "%)", sep = ""),
+       y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = ""),
+       color = "Diagnosis") 
+```
+
+
+Some thoughts:
+
+- Patients with larger PC1 scores are diagnosed with benign masses
+
+- Patients with small (i.e., the more negative) PC1 scores are diagnosed with malignant masses. 
+
+- There is a small region in which patient diagnoses overlap; however, the diagnoses are pretty well separated. 
+
+- We may want to look at the loadings to determine which variables heavily affect PC1. They might be good predictors of whether a patient's mass is benign or malignant.
+
+
+## Part b - Perform K-means with K = 2; Create PCA visualization coded by cluster assignments
+```{r}
+#Perform K-means with 2 clusters
+set.seed(123)
+kmeansRes2c <- kmeans(x = wbcScaled, centers = 2, iter.max = 20, nstart = 25)
+#Add cluster assignment to the plotting dataset (temp_df)
+temp_df <- temp_df %>% mutate(cluster = kmeansRes2c$cluster)
+#Create Plot
+ggplot(data = temp_df, aes (x = PC1, y = PC2, color = as.factor(cluster))) +
+  geom_point(alpha = .5) +
+  labs(x = paste("PC1 (", round(100*PVE[1], digits = 1), "%)", sep = ""),
+       y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = ""),
+       color = "Cluster") 
+```
+
+
+Some thoughts: 
+
+- It looks like our clusters are somewhat similar to the diagnosis groups, but the clusters are not a perfect representation of the diagnosis groups.
+
+### Part c - Create two-way table comparing cluster assignments and diagnoses
+```{r}
+table(temp_df$diagnosis, temp_df$cluster)
+```
+
+Observations: 
+
+- In cluster 1, 175 of the 189 patients (92.6%) had a malignant breast mass (diagnosis = M). 
+
+- In cluster 2, 343 of the 380 patients (90.3%) had a benign breast mass (diagnosis = B). 
+
+- The clusters appear to represent the two diagnosis groups pretty well.
+
+## Example - Hierarchical Clustering on WBC Data
+### Part a - Perform hierarchical clustering using Euclidean distance and complete linkage
+```{r}
+#Calculate dissimilarity using dist
+eucDist <- stats::dist(x = wbcScaled, method = "euclidean")
+
+#Perform hierarchical clustering
+hcComp <- hclust(d = eucDist, method = "complete")
+```
+
+### Part b - Create dendrogram for complete linkage with 2 clusters
+```{r}
+#Create dendrogram
+  fviz_dend(x = hcComp, k = 2, rect = TRUE) +
+  labs(subtitle = "Complete Linkage K = 2")
+```
+
+Thoughts:
+
+- The clusters are not really meaningful.
+
+- One cluster has 2 observations, which might be outliers that are not really close to the other patients. 
+
+- The other cluster has 567 out of 569 total patients. We did not really cluster the data.
+
+### Part c - How many clusters should you use?
+```{r}
+#Elbow Plot
+fviz_nbclust(x = wbcScaled, FUNcluster = hcut, 
+             method = "wss", 
+             k.max = 25,
+             hc_func = "hclust", 
+             hc_metric = "euclidean",
+             hc_method = "complete") +
+  labs(subtitle = "Complete Linkage")
+```
+
+I would likely use 4 clusters based on this plot.
+
+### Part d - Create two-way table comparing cluster assignments and diagnoses
+```{r}
+table(WBC$diagnosis,cutree(hcComp, k = 4))
+```
+
+Observations: 
+
+- We discover two large clusters that are similar in terms of size and composition to the two clusters discovered by K-means.
+
+- The other two clusters are relatively small (with sizes of 7 and 2). These smaller clusters might capture some of that patients that might be considered outliers who do not fit closely with the other groups. It might be advantageous to put them into small clusters rather than forcing them into the larger clusters.
+
+```{r}
+temp_df <- temp_df %>% mutate(h_cluster = cutree(hcComp, k = 4))
+#Create Plot
+ggplot(data = temp_df, aes (x = PC1, y = PC2, color = as.factor(h_cluster),
+                            shape = as.factor(h_cluster))) +
+  geom_point(alpha = .5) +
+  labs(x = paste("PC1 (", round(100*PVE[1], digits = 1), "%)", sep = ""),
+       y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = ""),
+       color = "H Cluster") 
+```

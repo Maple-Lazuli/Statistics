@@ -23,8 +23,8 @@ library(ISLR2) #used for USArrests dataset
 library(ggrepel) #used to avoid overlapping text in some PCA plots
 
 #Load Datasets
-setwd("/home/maple-power/CodeProjects/Statistics/STAT508/notebooks")
-nba_full <- read.csv("/home/maple-power/CodeProjects/Statistics/STAT508/sample_data/L02_NBA2223.csv")
+setwd("/home/maple/CodeProjects/Statistics/STAT508/notebooks")
+nba_full <- read.csv("/home/maple/CodeProjects/Statistics/STAT508/sample_data/L02_NBA2223.csv")
 
 #User-defined Functions
 find_intersection <- function(x1, x2, slope){

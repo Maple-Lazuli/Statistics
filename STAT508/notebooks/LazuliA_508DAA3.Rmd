@@ -1,0 +1,188 @@
+---
+title: "STAT508_DAA3"
+author: Ada Lazuli
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+
+```{r, message=FALSE}
+library(broom)
+library(dplyr)
+library(factoextra) 
+library(GGally)
+library(ggplot2)
+library(ggrepel)
+library(gridExtra)
+Pizza <- read.csv("../sample_data/L02_Pizza.csv")
+```
+
+
+## Problem 1 - Preparing for Clustering
+### Part a. - Create a dataset with numeric variables and standardize
+```{r}
+PizzaScaled <- Pizza %>% select(mois, prot, fat, ash, sodium, carb, cal)
+PizzaScaled <- scale(PizzaScaled, center = TRUE, scale = TRUE)
+```
+
+## Problem 2 - Performing K-means
+### Part a. - Create elbow plot for K-means
+```{r}
+set.seed(123)
+fviz_nbclust(x = PizzaScaled, FUNcluster = kmeans, 
+             method = "wss", k.max = 15, 
+             nstart = 25,
+             iter.max = 15) + 
+  labs(subtitle ="K-means")
+```
+### Part b. - How many clusters?
+
+Based on the elbow plot, it seems reasonable to explore between 4 and 5 clusters. 
+Based on the PCA plot, it could be argued that there are between 4 and 5 clusters.
+
+Solely using the wss score, it definitely seems to level off after 5 clusters. 
+
+### Part c. - Perform K-means with K = 5 and extract Total Within Cluster Variation
+
+```{r}
+set.seed(123)
+
+kmeansRes5c <-
+  kmeans(x = PizzaScaled, centers = 5, nstart = 25, iter.max = 15)
+
+kmeansRes5c$tot.withinss
+```
+
+The total within cluster variation is `r kmeansRes5c$tot.withinss` 
+
+### Part d. - How many observations were assigned to each cluster?
+
+```{r}
+table(kmeansRes5c$cluster)
+```
+
+The number of observations by cluster are:
+
+1. 61 observations
+2. 29 observations
+3. 120 observations
+4. 31 observations
+5. 59 observations
+
+
+### Part e. - Perform PCA and create visualization for K = 5 (K-means)
+
+```{r}
+pizzaPCA <- prcomp(x = PizzaScaled, center = TRUE, scale. = TRUE)
+PVE <- pizzaPCA$sdev^2/sum(pizzaPCA$sdev^2)
+
+pca_df <- as.data.frame(x = pizzaPCA$x[, 1:2])
+pca_df <- pca_df %>% mutate(cluster = kmeansRes5c$cluster)
+
+ggplot(pca_df, aes(x = PC1, y = PC2,
+                   color = as.factor(cluster),
+                   shape = as.factor(cluster))) + 
+  geom_point(alpha = 0.6) +
+    labs(x = paste("PC1 (", round(100*PVE[1], digits = 1), "%)", sep = ""),
+       y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = ""),
+       color = "Cluster",
+       shape = "Cluster") 
+```
+
+### Part f - Create a two-way table and discuss
+```{r}
+table(Pizza$brand, kmeansRes5c$cluster)
+```
+
+Based on the plots, it seems to be the case that each brand is linked with one cluster, while some clusters
+are linked to multiple brands. The insight from this is that Brands A and B are the most 
+unique. Additionally, these brands similar:
+
+1. Brands I and J are similar.
+2. Brands E, F, G and H are similar.
+3. Brands C and D are similar.
+
+
+### Part g - Find centroids
+
+```{r}
+Pizza %>% select(-brand, -id) %>%
+  mutate(cluster = kmeansRes5c$cluster) %>%
+  group_by(cluster) %>%
+  summarise_all(.funs = mean)
+```
+
+
+## Problem 3 - Performing Hierarchical Clustering 
+### Part a - Perform hierarchical clustering using Euclidean distance and complete linkage
+
+```{r}
+set.seed(123)
+fviz_nbclust(x = PizzaScaled, 
+             FUNcluster = hcut, 
+             method = "wss", 
+             k.max = 15, 
+             nstart = 25,
+             iter.max = 15,
+             hc_func = "hclust", 
+             hc_metric = "euclidean",
+             hc_method = "complete") +
+  labs(subtitle ="Single Linkage")
+```
+
+### Part b. - How many clusters?
+
+Based on the elbow plot, it seems that the within sum of squares score levels off after 4 clusters. Due to this,
+starting exploratory analysis with four clusters would be appropriate. 
+
+### Part c. - Create a dendrogram and label clusters for K = 5
+
+```{r, message=FALSE, warning=FALSE}
+eucDist <- stats::dist(x = PizzaScaled, method = "euclidean")
+hcSing <- hclust(d = eucDist, method = "complete")
+fviz_dend(x = hcSing, k = 5, rect = TRUE) + 
+  labs(subtitle = "Complete Linkage")
+```
+
+### Part d. - Perform PCA and create visualization for K = 5 (Hierarchical)
+
+```{r}
+pca_df <- pca_df %>% mutate(cluster = cutree(tree = hcSing, k = 5))
+
+ggplot(pca_df, aes(x = PC1, y = PC2,
+                   color = as.factor(cluster),
+                   shape = as.factor(cluster))) + 
+  geom_point(alpha = 0.6) +
+    labs(x = paste("PC1 (", round(100*PVE[1], digits = 1), "%)", sep = ""),
+       y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = ""),
+       color = "Cluster",
+       shape = "Cluster") 
+```
+
+### Part e - Create a two-way table
+
+```{r}
+table(Pizza$brand, cutree(tree = hcSing, k = 5))
+```
+
+### Part f - Compare K-means results to hierarchical results
+
+Based on the results from the hierarchical clustering, it seems that brands A and C 
+are the most distinct. The following brands are similar:
+
+1. Brands B and C
+2. Brands E, F, G, and H
+3. Brands I and J
+
+This differs from the results of the k-means clustering in that k-means associated brands C and D together.
+
+The difference between these results alludes to there being some undiscovered similarities and differences 
+between brands B, C, and D. 
+
+
+

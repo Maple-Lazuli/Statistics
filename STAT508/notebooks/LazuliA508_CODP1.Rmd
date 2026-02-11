@@ -1,0 +1,423 @@
+---
+title: "Unit 1 Project"
+author: "Ada Lazuli"
+output: html_document
+date: 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+library(GGally) #used for quickly creating all univariate and bivariate EDA plots
+library(gridExtra) #used for orgainzing ggplot objects into a grid
+library(factoextra) #Used for PCA plots
+library(broom) #useful for creating plot of loadings when performing PCA
+library(ISLR2) #used for USArrests dataset
+library(ggrepel) #used to avoid overlapping text in some PCA plots
+library(reactable) #
+
+#Load Datasets
+setwd("/home/maple/CodeProjects/Statistics/STAT508/notebooks")
+scores_full <- read.csv("/home/maple/CodeProjects/Statistics/STAT508/sample_data/STAT508_CODGamesP1.csv")
+
+```
+
+## Task 1
+
+
+#### Data Description
+
+Starting by becoming familar with the data available:
+
+```{r}
+reactable(scores_full, searchable = TRUE, compact = TRUE, striped = TRUE, defaultPageSize = 5, showPageSizeOptions = TRUE)
+```
+The data consists of 12 features. The first feature is the level. 
+
+```{r}
+table(scores_full$Level)
+length(table(scores_full$Level))
+```
+
+The level feature is qualitative with 25 distinct levels being captured in the data. Not all of the levels are equally represented, however. 
+
+The second feature is `FullPartial`, which describes whether the player played for the full duration of the match. 
+
+```{r}
+table(scores_full$FullPartial)
+```
+
+Based on the results of the table function, it appears that there is very severe class imbalance, with the vast majority of the observations consisting of 
+players who completed a full match.
+
+The third through ninth variables are quantitative and represent:
+
+1. The score of the player's team.
+2. The score of the opposing team.
+3. The number of eliminations the player achieved.
+4. The number of deaths the player experienced.
+5. The score of the player during the match.
+6. The damage dealt by the player.
+7. The experience earned by the player during the match.
+
+```{r}
+scores_num_long <- scores_full %>%
+  select(-Level, -FullPartial, -XPType, -Mode, -Game) %>%
+  pivot_longer(cols = 1: 7,
+               names_to = "Metric",
+               values_to = "Value")
+ggplot(scores_num_long, aes(x = Value)) + 
+  facet_wrap( ~ Metric, scales = "free_x") +
+  geom_histogram(alpha = 0.5) +
+  labs(x = "Count", y = "Performance Metric", subtitle = "Series of Boxplots Comparing Performance Metrics")
+```
+
+The damage dealt by the players is usually below 1000, but there are rare occasions where players deal over 4000 points of damage. Both the deaths and eliminations range
+from zero to approximately 40, with the majority of the deaths and eliminations being below 20.
+
+The player team and opponent team score metrics typically range from 50 to 100, with 100 being the most common score. Interestingly, there are some instances where
+the scores go as high as 250. This effect might be due to the game mode played.
+
+The score metric and totalXP metrics are both unimodal with right skews.
+
+```{r}
+scores_summary <- scores_num_long %>%
+  group_by(Metric) %>%
+  summarise(
+    "Min" = round(min(Value), digits = 3),
+    "Q1" = quantile(Value, .25)[[1]],
+    "Median" = round(median(Value), digits = 3),
+    "Q3" = quantile(Value, .75)[[1]],
+    "IQR" = quantile(Value, .75)[[1]] - quantile(Value, .25)[[1]],
+    "Max" = round(max(Value), digits = 3),
+    "Mean" = round(mean(Value), digits = 3),
+    "Standard Deviation" = round(sd(Value), digits = 3),
+  )
+reactable(scores_summary)
+```
+
+The tenth feature is qualitative and captures whether the match was serving regular or double experience. 
+
+```{r}
+table(scores_full$XPType)
+```
+
+Based on the table function, there is a roughly even split between matches with regular or double experience.
+
+The eleventh feature is also qualitative and records whether the match was core or hardcore. The key distinction with hardcore is that players have a smaller
+health pool and lose the ability to regerate health. This could have a consequence of affecting the damage dealt by players due to having less "spongy" opponents to attack.
+
+```{r}
+table(scores_full$Mode)
+```
+
+The table function shows that there is significant class imbalance, with the vast majority of the games being the hardcore variant. 
+
+Lastly, the twelfth feature is qualitative and captures the game mode, such as "death match" or "hardpoint".
+
+```{r}
+table(scores_full$Game)
+```
+
+The table shows that the majority of the games in the data are for "Team Death Match"
+
+```{r fig.width=10, fig.height=10}
+ggpairs(data = scores_full, columns = 3:9, progress = FALSE) +
+  theme(axis.ticks = element_blank(),
+        axis.text = element_blank())
+```
+
+Based on the bivariate plots, the largest correlation is between score and eliminations. Unsurprisingly, there is a high correlation between player deaths and 
+opponent team score.
+
+#### Discussion 
+During the initial data description, a few questions for further research were developed. The first is related to total experience and the game mode. It is
+known that different game modes have different team score limits. Furthermore, the bivarate plot showed that the correlation between team scores and total experience was 
+low. Therefore, it should follow that the the game modes with their different team score limits should not affect the total experience. The first research question
+is whether the data supports this conclusion.
+
+To attempt to answer this, a series of box plots capturing the distribution of total experience by game mode will be used.
+
+
+```{r}
+ggplot(scores_full, aes(x = TotalXP, y = Game, color = Game)) + 
+  geom_boxplot(alpha = .5) +
+  labs(x = "Total Experience", y = "Game Type", subtitle = "Boxplots Comparing Game Type and Experience")
+```
+
+Based on the boxplots, it seems that the total experience gained by the players in each game mode is similar. Notably, the largest difference in total experience
+is between Domination and Team Death Match, but there are only 4 observations for Domination matches more data needs to be collected to determine whether there
+is an actual difference.
+
+The second research question raised during the initial data description was whether players deal more damage in "Core" as suspected and whether that would results in "Core"
+matches leading to higher experience due to correlation of .382 between damage and total experience.
+
+```{r}
+ggplot(scores_full, aes(x = Damage, y = Mode, color = Mode)) + 
+  geom_boxplot(alpha = .5) +
+  labs(x = "Damage", y = "Game Mode", subtitle = "Boxplots Comparing Game Mode and Damage")
+```
+As expected, players deal more damage in core mode compared to hardcore mode.
+
+```{r}
+ggplot(scores_full, aes(x = TotalXP, y = Mode, color = Mode)) + 
+  geom_boxplot(alpha = .5) +
+  labs(x = "Total Experience", y = "Game Mode", subtitle = "Boxplots Comparing Game Mode and Total Experience")
+```
+Interestingly, despite the correlation between damage and experience, there is significant overlap between the total experience players earn in the different game modes. 
+The dreadful Simpson's paradox would have manifested had the previous boxplot illustrated a different conclusion.
+
+The final research question is whether the XPType of "double" actually results in double experience as the name would suggest. During the data description it was found
+that roughly half of the matches were labeled "double". This would lead to the expectation that the total experience feature is bi-modal, however it was observed to be
+uni-modal.
+
+To answer this question, a pair of box plots will be used.
+
+```{r}
+ggplot(scores_full, aes(x = TotalXP, y = XPType, color = XPType)) + 
+  geom_boxplot(alpha = .5) +
+  labs(x = "Total XP", y = "XP Type (Regular or Double)", subtitle = "Boxplots Comparing XP Type and Total XP")
+```
+The boxplots show that there is a significant difference between the "regular" and "double" experience matches, with double experience matches generally yielding
+more. Comparing the means and medians due to the right skew in double XP matches:
+```{r}
+reactable(scores_full %>%
+  group_by(XPType) %>%
+  summarise(
+    "Median XP" = round(median(TotalXP), digits = 3),
+    "Mean XP" = round(mean(TotalXP), digits = 3),
+    ))
+```
+
+It seems to be the case that double XP matches actually result in double experience. This finding places doubt on the earlier research questions and the double experience matches should be accounted for.
+
+Revising the first question regarding whether experience earned varies by game mode:
+
+```{r}
+ggplot(scores_full, aes(x = TotalXP, y = Game, color = Game)) + 
+  geom_boxplot(alpha = .5) +
+  facet_wrap(~ XPType) +
+  labs(x = "Total Experience", y = "Game Type", subtitle = "Faceted Boxplots Comparing Game Type and Experience")
+```
+It seems that accounting for double experience cleaned up the plots, making the case stronger that total experience does not vary by game type.
+
+Revisiting the second question regarding whether "core" or "hardcore" matches lead to more experience.
+
+```{r}
+ggplot(scores_full, aes(x = TotalXP, y = Mode, color = Mode)) + 
+  geom_boxplot(alpha = .5) +
+  facet_wrap(~ XPType) +
+  labs(x = "Total Experience", y = "Game Mode", subtitle = "Faceted Boxplots Comparing Game Mode and Total Experience")
+```
+
+Again, accounting for double experience matches makes a stronger case that the total experience earned by a player does not vary with the game mode.
+
+## Task 2
+
+#### Discussion of Data Wrangling and Approach to PCA
+As seen the initial research questions, there are many features and interactions in this data and further investigation into total experience needs to be conducted using principle component
+analysis (PCA) to reduce the dimensional.
+
+Prior to conducting PCA, however, decisions need to be made on how to manage the qualitative variables. Task 1 concluded with the game type and game mode not having 
+an observable affect on the total experience, so those features will not be used. The XPType variable has a dramatic effect on total experience and will be encoded as a zero or one
+for whether the match has double experience.
+
+```{r}
+scores_num <- scores_full %>%
+  select(-Level, -FullPartial, -Mode, -Game) %>%
+  mutate(XPType = ifelse(XPType == "Double", 1, 0))
+reactable(scores_num)
+```
+```{r}
+prcomp_res <- prcomp(x = scores_num, center = TRUE, scale. = TRUE)
+```
+
+#### Results
+
+```{r}
+PVE <- prcomp_res$sdev^2/sum(prcomp_res$sdev^2)
+fviz_screeplot(X = prcomp_res, 
+     geom = c("bar", "line"),
+     choice = "variance",
+     ncp = 7,
+     addlabels = TRUE) +
+  labs(x = "Principal Component",
+       y = "Percentage of Variance Explained") +
+  scale_y_continuous(limits = c(0,100))
+```
+
+```{r}
+cumPVE_df <- data.frame(PC = 1:ncol(scores_num), CumVarExp = cumsum(PVE))
+
+ggplot(data = cumPVE_df, mapping = aes(x = PC, y = CumVarExp)) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(limits = c(0,1)) +
+  labs(x = "Principal Components",
+       y = "Cumulative Proportion of Variance Explained") +
+  theme_bw()
+```
+
+The first four principle components explain `r round(cumPVE_df$CumVarExp[4], digits = 4) * 100`% of the variance.
+
+```{r}
+tidy(prcomp_res, matrix = "loadings") %>% 
+  filter(PC %in% 1:4) %>%
+  ggplot(aes(x = value, y = column)) +
+  facet_wrap(~ PC) + 
+  geom_col(aes(fill=column),show.legend = F)+
+  labs(x= "Loadings",y="Predictors")+
+  theme_bw()
+```
+
+```{r}
+fviz_pca_biplot(prcomp_res, repel = TRUE,
+                col.var = "#2E9FDF",
+                col.ind = "#696969",
+                geom.ind = "point")
+```
+
+```{r}
+combined <- as.data.frame(prcomp_res$x[, 1:4])
+combined$Level <- scores_full$Level
+combined$Game <- scores_full$Game
+combined$Mode <- scores_full$Mode
+
+loadings <- as.data.frame(prcomp_res$rotation[, 1:2])
+loadings$variable <- rownames(loadings)
+arrow_scale <- max(abs(combined$PC1), abs(combined$PC2))
+loadings$PC1 <- loadings$PC1 * arrow_scale
+loadings$PC2 <- loadings$PC2 * arrow_scale
+
+
+
+ggplot(combined, aes(x = PC1, y = PC2, color = Mode)) +
+  geom_point() +
+  geom_segment(data = loadings,
+               aes(x = 0, y = 0, xend = PC1, yend = PC2),
+               arrow = arrow(length = unit(0.25, "cm")),
+               inherit.aes = FALSE,
+               color = "black",
+               alpha = 0.7) +
+  geom_text(data = loadings,
+            aes(x = PC1, y = PC2, label = variable),
+            inherit.aes = FALSE,
+            hjust = 1.1, vjust = 1.1) +
+  labs(
+    x = paste("PC1 (", round(100 * PVE[1], 1), "%)", sep = ""),
+    y = paste("PC2 (", round(100 * PVE[2], 1), "%)", sep = "")
+  )
+
+```
+
+```{r}
+ggplot(combined, aes(x = PC1, y = PC2, color = Game, shape = Game)) +
+  geom_point() +
+  geom_segment(data = loadings,
+               aes(x = 0, y = 0, xend = PC1, yend = PC2),
+               arrow = arrow(length = unit(0.25, "cm")),
+               inherit.aes = FALSE,
+               color = "black",
+               alpha = 0.7) +
+  geom_text(data = loadings,
+            aes(x = PC1, y = PC2, label = variable),
+            inherit.aes = FALSE,
+            hjust = 1.1, vjust = 1.1) +
+  labs(
+    x = paste("PC1 (", round(100 * PVE[1], 1), "%)", sep = ""),
+    y = paste("PC2 (", round(100 * PVE[2], 1), "%)", sep = "")
+  )
+```
+
+## Task 3
+
+#### Clustering on High Dimensional Data 
+
+```{r}
+fviz_nbclust(x = scores_num, 
+             FUNcluster = hcut, 
+             method = "wss", 
+             k.max = 15, 
+             nstart = 25,
+             iter.max = 15,
+             hc_func = "hclust", 
+             hc_metric = "euclidean",
+             hc_method = "complete") +
+  labs(subtitle ="Single Linkage")
+```
+```{r}
+eucDist <- stats::dist(x = scores_num, method = "euclidean")
+hcSing <- hclust(d = eucDist, method = "complete")
+hd_clusters <- cutree(tree = hcSing, k = 4)
+```
+
+
+
+#### Clustering after PCA
+
+```{r}
+fviz_nbclust(x = as.data.frame(prcomp_res$x), FUNcluster = kmeans, 
+             method = "wss", k.max = 15, 
+             nstart = 25,
+             iter.max = 15) + 
+  labs(subtitle ="K-means")
+```
+
+```{r}
+fviz_nbclust(x = as.data.frame(prcomp_res$x), 
+             FUNcluster = hcut, 
+             method = "wss", 
+             k.max = 15, 
+             nstart = 25,
+             iter.max = 15,
+             hc_func = "hclust", 
+             hc_metric = "euclidean",
+             hc_method = "complete") +
+  labs(subtitle ="Single Linkage")
+
+eucDist <- stats::dist(x = as.data.frame(prcomp_res$x[,1:4]), method = "euclidean")
+hcSing <- hclust(d = eucDist, method = "complete")
+pca_clusters <- cutree(tree = hcSing, k = 3)
+```
+
+#### Comparison of Results
+
+```{r}
+
+combined <- combined %>% 
+  mutate(hd_cluster = hd_clusters) %>%
+  mutate(pca_cluster = pca_clusters)
+
+ggplot(combined, aes(x = PC1, y = PC2,
+                   color = as.factor(hd_cluster),
+                   shape = as.factor(hd_cluster))) + 
+  geom_point(alpha = 0.6) +
+    labs(x = paste("PC1 (", round(100*PVE[1], digits = 1), "%)", sep = ""),
+       y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = ""),
+       color = "Cluster",
+       shape = "Cluster") 
+
+```
+
+
+
+
+```{r}
+ggplot(combined, aes(x = PC1, y = PC2,
+                   color = as.factor(pca_cluster),
+                   shape = as.factor(pca_cluster))) + 
+  geom_point(alpha = 0.6) +
+    labs(x = paste("PC1 (", round(100*PVE[1], digits = 1), "%)", sep = ""),
+       y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = ""),
+       color = "Cluster",
+       shape = "Cluster") 
+
+```

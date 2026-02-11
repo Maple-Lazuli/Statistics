@@ -10,24 +10,20 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Front Matter
-```{r}
-#Delete all objects from Environment - Use with caution
+```{r, warning=FALSE, message=FALSE}
 remove(list = ls()) 
 
-#Load Libraries
 library(tidyverse)
-library(GGally) #used for quickly creating all univariate and bivariate EDA plots
-library(gridExtra) #used for orgainzing ggplot objects into a grid
-library(factoextra) #Used for PCA plots
-library(broom) #useful for creating plot of loadings when performing PCA
-library(ISLR2) #used for USArrests dataset
-library(ggrepel) #used to avoid overlapping text in some PCA plots
-library(reactable) #
+library(GGally) 
+library(gridExtra) 
+library(factoextra) 
+library(broom) 
+library(mclust)
+library(ggrepel)
+library(reactable) 
 
-#Load Datasets
-setwd("/home/maple/CodeProjects/Statistics/STAT508/notebooks")
-scores_full <- read.csv("/home/maple/CodeProjects/Statistics/STAT508/sample_data/STAT508_CODGamesP1.csv")
-
+setwd("/home/maple-power/CodeProjects/Statistics/STAT508/notebooks")
+scores_full <- read.csv("/home/maple-power/CodeProjects/Statistics/STAT508/sample_data/STAT508_CODGamesP1.csv")
 ```
 
 ## Task 1
@@ -40,7 +36,7 @@ Starting by becoming familar with the data available:
 ```{r}
 reactable(scores_full, searchable = TRUE, compact = TRUE, striped = TRUE, defaultPageSize = 5, showPageSizeOptions = TRUE)
 ```
-The data consists of 12 features. The first feature is the level. 
+The data consists of 12 features. The first feature is the level or map the match occurred on. 
 
 ```{r}
 table(scores_full$Level)
@@ -68,7 +64,7 @@ The third through ninth variables are quantitative and represent:
 6. The damage dealt by the player.
 7. The experience earned by the player during the match.
 
-```{r}
+```{r, message=FALSE}
 scores_num_long <- scores_full %>%
   select(-Level, -FullPartial, -XPType, -Mode, -Game) %>%
   pivot_longer(cols = 1: 7,
@@ -199,7 +195,7 @@ reactable(scores_full %>%
 
 It seems to be the case that double XP matches actually result in double experience. This finding places doubt on the earlier research questions and the double experience matches should be accounted for.
 
-Revising the first question regarding whether experience earned varies by game mode:
+Revisiting the first question regarding whether experience earned varies by game mode:
 
 ```{r}
 ggplot(scores_full, aes(x = TotalXP, y = Game, color = Game)) + 
@@ -242,7 +238,7 @@ prcomp_res <- prcomp(x = scores_num, center = TRUE, scale. = TRUE)
 
 #### Results
 
-```{r}
+```{r, warning=FALSE}
 PVE <- prcomp_res$sdev^2/sum(prcomp_res$sdev^2)
 fviz_screeplot(X = prcomp_res, 
      geom = c("bar", "line"),
@@ -266,7 +262,7 @@ ggplot(data = cumPVE_df, mapping = aes(x = PC, y = CumVarExp)) +
   theme_bw()
 ```
 
-The first four principle components explain `r round(cumPVE_df$CumVarExp[4], digits = 4) * 100`% of the variance.
+The first four principle components explain `r round(cumPVE_df$CumVarExp[4], digits = 4) * 100`% of the variance based on the cumulative variance plot and should be sufficient.
 
 ```{r}
 tidy(prcomp_res, matrix = "loadings") %>% 
@@ -278,68 +274,57 @@ tidy(prcomp_res, matrix = "loadings") %>%
   theme_bw()
 ```
 
-```{r}
+Using approximately 0.5 as a significance threshold, the first principle component is most influenced by Total Experience and Eliminations. The second component is significantly influenced by the team scores and deaths. The third principle component is very influenced by XPType. Lastly the fourth principle component is very influenced by damage.
+
+```{r,  warning=FALSE}
 fviz_pca_biplot(prcomp_res, repel = TRUE,
                 col.var = "#2E9FDF",
                 col.ind = "#696969",
                 geom.ind = "point")
 ```
 
+The PCA Biplot shows that there is minimal correlation between features Score, TotalXP, XPType, Damage, and Eliminations compared to PlayerTeamScore, OpponentTeamScore, and Deaths. These vector angles seem to match the correlations from the earlier bi-variate plot.
+
+
 ```{r}
 combined <- as.data.frame(prcomp_res$x[, 1:4])
-combined$Level <- scores_full$Level
 combined$Game <- scores_full$Game
 combined$Mode <- scores_full$Mode
 
-loadings <- as.data.frame(prcomp_res$rotation[, 1:2])
-loadings$variable <- rownames(loadings)
-arrow_scale <- max(abs(combined$PC1), abs(combined$PC2))
-loadings$PC1 <- loadings$PC1 * arrow_scale
-loadings$PC2 <- loadings$PC2 * arrow_scale
-
-
-
-ggplot(combined, aes(x = PC1, y = PC2, color = Mode)) +
-  geom_point() +
-  geom_segment(data = loadings,
-               aes(x = 0, y = 0, xend = PC1, yend = PC2),
-               arrow = arrow(length = unit(0.25, "cm")),
-               inherit.aes = FALSE,
-               color = "black",
-               alpha = 0.7) +
-  geom_text(data = loadings,
-            aes(x = PC1, y = PC2, label = variable),
-            inherit.aes = FALSE,
-            hjust = 1.1, vjust = 1.1) +
+ggplot(combined, aes(x = PC1, y = PC2, color = Mode, shape = Mode)) +
+  geom_point(alpha = 0.7) +
   labs(
     x = paste("PC1 (", round(100 * PVE[1], 1), "%)", sep = ""),
     y = paste("PC2 (", round(100 * PVE[2], 1), "%)", sep = "")
   )
 
 ```
+
+Coloring the PCA plot by mode shows that there not much of a difference in the experience related features between the different modes of core and hardcore.
 
 ```{r}
 ggplot(combined, aes(x = PC1, y = PC2, color = Game, shape = Game)) +
-  geom_point() +
-  geom_segment(data = loadings,
-               aes(x = 0, y = 0, xend = PC1, yend = PC2),
-               arrow = arrow(length = unit(0.25, "cm")),
-               inherit.aes = FALSE,
-               color = "black",
-               alpha = 0.7) +
-  geom_text(data = loadings,
-            aes(x = PC1, y = PC2, label = variable),
-            inherit.aes = FALSE,
-            hjust = 1.1, vjust = 1.1) +
+  geom_point(alpha = 0.7) +
   labs(
     x = paste("PC1 (", round(100 * PVE[1], 1), "%)", sep = ""),
     y = paste("PC2 (", round(100 * PVE[2], 1), "%)", sep = "")
   )
 ```
+
+The second PCA plot colored by game type shows that there is not a significant difference in the experience related features. However, the plot indicates that domination and hard point tend to have lower team scores and deaths.
 
 ## Task 3
 
 #### Clustering on High Dimensional Data 
+
+```{r}
+scores_num <- scale(scores_num, center = TRUE, scale = TRUE)
+fviz_nbclust(x = scores_num, FUNcluster = kmeans, 
+             method = "wss", k.max = 15, 
+             nstart = 25,
+             iter.max = 15) + 
+  labs(subtitle ="K-means")
+```
 
 ```{r}
 fviz_nbclust(x = scores_num, 
@@ -351,14 +336,18 @@ fviz_nbclust(x = scores_num,
              hc_func = "hclust", 
              hc_metric = "euclidean",
              hc_method = "complete") +
-  labs(subtitle ="Single Linkage")
+  labs(subtitle ="Complete Linkage")
 ```
+
+Elbow plots using hierarchical clustering and k-means with 15 clusters, 15 iterations, and 25 starts seems to indicate that 3 clusters is optimal.
+
 ```{r}
 eucDist <- stats::dist(x = scores_num, method = "euclidean")
 hcSing <- hclust(d = eucDist, method = "complete")
-hd_clusters <- cutree(tree = hcSing, k = 4)
+hd_clusters <- cutree(tree = hcSing, k = 3)
 ```
 
+The elbow plot from hierarchical clustering was the clearest, so it will be the clustering method chosen for the high density data.
 
 
 #### Clustering after PCA
@@ -381,12 +370,14 @@ fviz_nbclust(x = as.data.frame(prcomp_res$x),
              hc_func = "hclust", 
              hc_metric = "euclidean",
              hc_method = "complete") +
-  labs(subtitle ="Single Linkage")
+  labs(subtitle ="Complete Linkage")
 
 eucDist <- stats::dist(x = as.data.frame(prcomp_res$x[,1:4]), method = "euclidean")
 hcSing <- hclust(d = eucDist, method = "complete")
 pca_clusters <- cutree(tree = hcSing, k = 3)
 ```
+
+The same clustering parameters were used in the elbow plots for the PCA components 1 through 4. The k-means elbow plot does not provide a clear optimal number; however, the hierarchical clustering elbow plot suggests that the optimal number of clusters might be 3. 
 
 #### Comparison of Results
 
@@ -407,6 +398,7 @@ ggplot(combined, aes(x = PC1, y = PC2,
 
 ```
 
+The hierarchical clustering seems to have results in clusters for low team scores and deaths matches, high experience matches, and low experience matches. Clusters 1 and 3 are mostly along the first principle component while the second cluster is along the second principle component.
 
 
 
@@ -419,5 +411,16 @@ ggplot(combined, aes(x = PC1, y = PC2,
        y = paste("PC2 (", round(100*PVE[2], digits = 1), "%)", sep = ""),
        color = "Cluster",
        shape = "Cluster") 
-
 ```
+
+Clustering on the PCA data resulted in clusters in the same general locations, however the boundaries are different. Cluster 3 is now more distinct compared to clusters 1 and 2. Clusters 1 and 2 have significantly more overlap. 
+
+```{r}
+ari <- adjustedRandIndex(hd_clusters, pca_clusters)
+ari
+```
+The adjusted rand index for similarity the labels from the high density clustering and the pca clustering is `r round(ari, digits = 3)`. The rand index ranges from 0 to 1 and the score of `r round(ari, digits = 3)` indicates low agreement between the label assignments (Fraley et al, 2025). 
+
+### References
+
+Fraley, C., Raftery, A., Scrucca, L., Murphy, T., Fop, M. (2025). _Gaussian Mixture Modeling_. Retrieved from: [r-cran](https://cran.r-project.org/web/packages/mclust/index.html)

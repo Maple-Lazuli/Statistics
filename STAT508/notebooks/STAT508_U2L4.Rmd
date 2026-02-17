@@ -1,0 +1,378 @@
+---
+title: "U2L4 - Linear Regression"
+output: html_document
+date: "September 11, 2023"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+
+
+#Load Datasets
+Vehicles <- read.csv("../sample_data/L04_Vehicles_m.csv")
+Ins <- read.csv("../sample_data/L01_Insurance_m.csv")
+```
+
+## Example - Basics of MLR
+#### Part a - Renaming variables and handling missingness
+```{r}
+#Create Descriptive Variable Names
+Vehicles <- Vehicles %>%
+  rename(Price = V1,
+         Miles = V2,
+         Manufacturer = V3,
+         Model = V4)
+#Caution: If you run this chunk more than once, you will get an error message because V1, V2, V3, V4 no longer exist
+```
+
+```{r, eval = FALSE}
+#Check for missingness
+apply(X = Vehicles, MARGIN = 2, FUN = function(x) sum(is.na(x)))
+
+#Remove observations with missing values
+Vehicles <- na.omit(Vehicles)
+```
+
+#### Part b - Is there a linear association between price and miles?
+```{r}
+#Create a visualization
+ggplot(data = Vehicles, mapping = aes(x = Miles, y = Price)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+#Provide summary statistics
+cor(x = Vehicles$Miles, y = Vehicles$Price)
+```
+
+#### Part c - What other variables could explain price?
+- Condition of the car (scratches, dents, rust, etc.)
+- Whether the vehicle has been involved in an accident
+- Features of the vehicle (AC, sun roof, 2 or 4 doors)
+- Model of the car and/or the manufacturer of the car
+
+#### Part d - Is there an association between prices, miles, and model? 
+```{r}
+#Create a visualization
+ggplot(data = Vehicles, mapping = aes(x = Miles, y = Price, color = Model, shape = Model)) +
+  geom_point() +
+  geom_smooth(method = lm)
+```
+
+Some observations:
+
+- Within each model, there is a negative linear association. As miles increases, price decreases.
+- The rate of change in price with respect to miles (i.e., the slopes) may be different for the different models. It looks like Camry's and Volt's have similar slopes, but the slope for Tacoma's may not be as steep. 
+- For a given number of miles, Tacoma's are more expensive than Camry's and Camry's are more expensive than Volt's.
+
+#### Part e - Defining Indicator Variables
+The indicator for Camry is given by:
+
+$$x_{i,Camry} = 
+  \begin{cases} 
+      1 & \text{Model = Camry} \\
+      0 & \text{Model }\ne \text{Camry} 
+   \end{cases}$$
+
+The indicator for Tacoma is given by:
+
+$$x_{i,Tacoma} = 
+  \begin{cases} 
+      1 & \text{Model = Tacoma} \\
+      0 & \text{Model }\ne \text{Tacoma} 
+   \end{cases}$$
+
+#### Part f - Understanding Indicators
+
+|Camry $(x_{i,2})$ | Tacoma $(x_{i,3})$ | Implied Model of Car |
+|:-----:|:-----:|:-----:|
+|1 | 0 | Camry  |
+|0 | 1 | Tacoma  |
+|0 | 0 | Volt  |
+
+NOTE: The value implied when all indicators are 0 is often called the "baseline". In this case, the Volt is the baseline.
+
+#### Part g - Build Regression Model for Price
+```{r}
+#Create Indicators for Camry and Tacoma
+Vehicles <- Vehicles %>%
+  mutate(Camry = ifelse(Model == "Camry", 1,0)) %>%
+  mutate(Tacoma = ifelse(Model == "Tacoma", 1,0))
+  
+
+#Build the model and present a summary
+model1 <- lm(Price ~ Miles + Camry + Tacoma, data = Vehicles)
+summary(model1)
+#Generate Plots for Checking Assumptions (Not covered in notes)
+#plot(model1, which = c(1,2))
+plot(model1, which = c(1,2))
+```
+
+The estimated regression coefficients are found in the Estimate column of the Coefficients table in the R output. The estimated regression equation is given by:
+
+$$\hat{y}_{i} = 8.29 - 0.08 x_{i,miles} + 10.21 x_{i,Camry} + 19.88 x_{i, Tacoma}$$
+
+#### Part h - Predict the price for a Tacoma with 105.0 thousands of miles.
+```{r}
+#Prediction using predict() function
+predict(model1, newdata = data.frame(Miles = 105, Tacoma = 1, Camry = 0))
+```
+
+
+#### Part i - What proportion of the total variation in the Price is explained by the model?
+
+This is just asking for $R^2$. We can find $R^2$ by looking at the Multiple R-squared value in the R output. Here,
+
+$$
+R^2 = 0.8148
+$$
+
+#### Part j - Interpret the coefficients
+
+#### Part k - Find confidence Intervals for the regression coefficients
+```{r, eval = FALSE}
+confint(model1, level = 0.95)
+```
+
+## Example - R Generated Indicator Variables
+#### Part a - Let R create the indicator variables
+```{r, eval = FALSE}
+model1b <- lm(Price ~ Miles + Model, data = Vehicles)
+summary(model1b)
+```
+
+#### Part b - Use 3 indicator variables
+```{r, eval = FALSE}
+Vehicles <-
+  Vehicles %>%
+  mutate(Volt = ifelse(Model == "Volt", 1,0))
+
+model1c <- lm(Price ~ Miles + Camry + Tacoma + Volt, data = Vehicles)
+summary(model1c)
+```
+
+## Example - Random Number Generation in R
+#### Part a - "Randomly" generating numbers in R
+```{r}
+#Randomly generate 9 numbers from 1 to 20 with replacement
+sample(x = 1:20, size = 9, replace = TRUE) 
+```
+
+#### Part b - "Randomly" generating numbers in R with a seed
+```{r}
+#Randomly generate 9 numbers from 1 to 20 using a seed of 1234
+set.seed(1234)
+sample(x = 1:20, size = 9, replace = TRUE) #16  5 12 15  9  5  6 16  4
+set.seed(NULL)
+```
+
+#### Part c - What purpose does set.seed(NULL) serve?
+```{r}
+#Randomly generate 3 numbers from 1 to 20 3 times using a seed of 1234
+set.seed(1234)
+sample(x = 1:20, size = 3, replace = TRUE) #16  5 12 
+sample(x = 1:20, size = 3, replace = TRUE) #15  9  5  
+sample(x = 1:20, size = 3, replace = TRUE) #6 16  4
+set.seed(NULL)
+
+#What does set.seed(NULL) do?
+set.seed(1234)
+sample(x = 1:20, size = 3, replace = TRUE) #16  5 12
+sample(x = 1:20, size = 3, replace = TRUE) #15  9  5
+set.seed(NULL)
+sample(x = 1:20, size = 3, replace = TRUE) #Not using a seed (results will be random)
+```
+
+## Example - Comparing Models Using Validation Set Approach
+#### Part a - Remove Missing Values and split into training and validation sets
+```{r}
+#Remove any observations with missing data
+Ins <-na.omit(Ins)
+
+```
+
+```{r}
+#Perform training/validation split
+set.seed(42)
+train_ind <- sample(x = 1:nrow(Ins), size = floor(0.8*nrow(Ins)), replace = FALSE)
+set.seed(NULL)
+
+train <- Ins[train_ind,]
+validation <- Ins[-train_ind,]
+```
+
+
+#### Part b - EDA plot using the training data
+```{r, eval = FALSE}
+ggplot(data = train, mapping = aes(x = bmi, y = charges, 
+                                   color = smoker, shape = smoker)) +
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Body Mass Index",
+       y = "Charges",
+       color = "Smoking Status",
+       shape = "Smoking Status")
+```
+
+Observations:
+
+- Different linear patterns for smokers and non-smokers. 
+
+- As bmi increases for both groups, charges also increases (i.e., both have positive slopes), but the charges increase at a faster for smokers (slope is steeper for smokers)
+
+- Since the lines have different slopes and intercepts, there might be an interaction between bmi and smoking.
+
+- It might be helpful to include both variables in the model.
+
+#### Part c - Build model for predicting charges using bmi and smoking status
+```{r}
+model1 <- lm(charges ~ bmi + smoker, data = train)
+summary(model1)
+```
+
+#### Part d - Describe the order of operations fo calculating MSE
+The MSE is given by:
+
+$$MSE = \frac{1}{n}\sum_{i=1}^n (y_{i} - \hat{y}_{i})^2$$
+
+Steps:
+
+1. Calculate the predicted responses (yhat)
+2. Calculate the residuals (y - yhat)
+3. Square the residuals
+4. Find the mean of the squared residuals
+   + Sum the residuals
+   + Multiply by (1/n) or divide by n
+
+
+#### Part e - Calculate MSE and RMSE for training data
+```{r}
+#MSE Train - Use the residuals stored from the estimating the model using train
+MSEtrain1 <- mean(model1$residuals^2)
+RMSEtrain1 <- sqrt(MSEtrain1)
+
+MSEtrain1
+RMSEtrain1
+```
+
+#### Part f - Calculate the MSE and RMSE for the valdiation data
+```{r}
+#MSE Validation
+#First find predictions on validation
+yhatVal1 <- predict(model1, newdata = validation)
+#Using predictions from validation, calculate squared residuals and find the mean
+MSEval1 <- mean((validation$charges - yhatVal1)^2)
+RMSEval1 <- sqrt(MSEval1)
+
+MSEval1
+RMSEval1
+```
+
+
+#### Part g - Create model using bmi, smoker, and region
+
+```{r, eval = FALSE}
+#Build the model
+model2 <- lm(charges ~ bmi + smoker + region, data = train)
+model2 <- lm(bmi ~ age + sex + smoker + region, data = train)
+#MSE and RMSE of Train
+MSEtrain2 <- mean((model2$residuals)^2)
+RMSEtrain2 <- sqrt(MSEtrain2)
+
+#MSE and RMSE of Validation
+yhatVal2 <- predict(model2, newdata = validation)
+MSEval2 <- mean((validation$charges - yhatVal2)^2)
+RMSEval2 <- sqrt(MSEval2)
+
+MSEtrain2
+RMSEtrain2
+MSEval2
+RMSEval2
+```
+
+
+#### Part h - Comparing Models
+```{r, eval = FALSE}
+#Since I want to create new variables, I either a) have to create the variables in the original dataset and repeat the split into training and validation sets OR b) create the variables within both the training and validation sets as shown below
+
+#Create new variables in train
+train <-
+  train %>%
+  mutate(smokes = ifelse(smoker == "yes", 1, 0),
+         bmismokes = bmi*smokes)
+
+#Create new variables in validation
+validation <-
+  validation %>%
+  mutate(smokes = ifelse(smoker == "yes", 1, 0),
+         bmismokes = bmi*smokes)
+
+#Build model with interaction term
+model3 <- lm(charges ~ bmi + smoker + bmismokes, data = train)
+summary(model3)
+
+#MSE Train
+MSEtrain3 <- mean((model3$residuals)^2)
+RMSEtrain3 <- sqrt(MSEtrain3)
+
+#MSE Validation
+yhatVal3 <- predict(model3, newdata = validation)
+MSEval3 <- mean((validation$charges - yhatVal3)^2)
+RMSEval3 <- sqrt(MSEval3)
+
+MSEtrain3
+RMSEtrain3
+MSEval3
+RMSEval3
+```
+
+## k-Fold CV Code (Not discussed in notes)
+```{r, eval = FALSE}
+#Create a vector with the fold values
+#Each observation will be assigned a value from 1 to k where k is the number of folds
+num_folds <- 5 #this is the k in k-fold; here we are doing 5-fold cross validation
+folds <- cut(x = 1:nrow(Ins), breaks = num_folds, labels = FALSE)
+
+#Randomly permute/mix up the values so that the values in folds are not in order 
+#This is equivalent to mixing up the row numbers in Figure 5.5
+set.seed(123)
+folds <- sample(folds)
+set.seed(NULL)
+
+#Set up Loop storage
+MSE_vec <- rep(NA, num_folds) #Creates a vector where NA is repeated num_folds times
+                              #This is for storing the MSE of each fold
+
+#Loop through the folds - each time remove one fold to use as validation set; rest is train
+for(i in 1:num_folds){
+  #Training/Valiation Split - different than before
+  validation_ind <- which(folds == i)
+  validation <- Ins[validation_ind, ]
+  train <- Ins[-validation_ind, ]
+  
+  #Build model
+  temp_reg <- lm(charges ~ bmi + smoker, data = train)
+  
+  #Find MSE
+  yhat <- predict(temp_reg, newdata = validation)
+  mse <- mean((validation$charges - yhat)^2)
+  MSE_vec[i] <- mse
+}
+
+#Display MSE values (there should be one for each fold)
+MSE_vec
+
+#Find the mean of the MSE values (book calls this CV_(k))
+mean(MSE_vec)
+
+#For a more interpretation answer, report the square root of the mean MSE
+sqrt(mean(MSE_vec))
+```

@@ -1,0 +1,287 @@
+---
+title: "STAT508_DAA4"
+author: "Ada Lazuli"
+output: html_document
+date: "Tuesday, February 17, 2026"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+
+```{r, message=FALSE}
+library(tidyverse)
+
+NOVA <- read.csv("../sample_data/L04_NOVA.csv")
+```
+
+## Problem 1 - Preparing for Regression
+### Preliminaries
+```{r}
+#Create a copy of NOVA named NOVA2
+NOVA2 <- NOVA
+
+#Find number of properties within each county
+NOVA2 %>%
+  group_by(CountySchool) %>%
+  summarize(N = n())
+
+#Create histogram of Prices and highlight outliers
+ggplot(data = NOVA2, mapping = aes(x = Price)) +
+  geom_histogram(binwidth = 200000, color = "black", fill = "lightblue") +
+  labs(x = "Price (in Dollars)",
+       y = "Number of Properties") +
+  scale_x_continuous(labels = scales::comma) + #Removes scientific notation from axis labels
+  geom_vline(xintercept = 3000000, color = "red", linewidth = 2) +
+  geom_point(data = NOVA2[NOVA2$Price > 3000000,],aes(x = Price, y = 0), 
+             color = "red", shape = 1, size = 10)
+```
+
+### Part a. - Explore the outliers
+
+```{r}
+NOVA %>% filter(Price > 3000000)
+```
+
+It seems that the outliers differ based on the ratio of bathrooms to bedrooms, where the more expensive homes have a higher ratio. Exploring this further:
+
+```{r}
+NOVA %>% filter(Bedrooms > 0) %>%
+  mutate(Ratio = Bathrooms/Bedrooms, Outlier = ifelse(Price > 3000000, "Yes", "No")) %>%
+  group_by(Outlier) %>%
+  summarise(Mean_Ratio = mean(Ratio),
+            Mean_Bathrooms = mean(Bathrooms),
+            Mean_Bedrooms = mean(Bedrooms))
+```
+
+The more expensive homes have meany more bathrooms on average.
+
+```{r}
+temp <- NOVA %>%
+  filter(Bedrooms > 0, Bathrooms >= 0) %>%   
+  mutate(BathroomGroup = cut(Bathrooms, breaks = 7),
+         PriceGroup = cut(Price, breaks = 6))
+
+ggplot(temp, aes(x = Price, color = BathroomGroup, fill = BathroomGroup)) + 
+  geom_boxplot() +
+  labs(x = "Price", y = "Bathrooms")
+```
+
+It appears that the price increases as the number of bathrooms increases. The most expensive homes have significantly more bathrooms.
+
+### Part b. - Remove outliers and counties with limited information
+
+
+
+```{r}
+NOVA2 <- NOVA %>%
+  filter(Price < 3000000) %>%
+  filter(CountySchool != "LOUDOUN COUNTY PUBLIC SCHOOLS") %>%
+  filter(CountySchool != "PRINCE WILLIAM COUNTY PUBLIC SCHOOLS")
+nrow(NOVA)
+```
+
+The number of rows following the filtering is: `r nrow(NOVA)`
+
+### Part c. - Transform the price
+
+```{r}
+NOVA2 <- NOVA2 %>% mutate(logPrice = log(Price))
+```
+
+### Part d. - Creating Indicator Variables
+
+```{r}
+NOVA2 <- NOVA2 %>% mutate(Single = ifelse(ListingType == "Single Family", 1, 0)) %>%
+  mutate(Arlington = ifelse(CountySchool == "ARLINGTON COUNTY PUBLIC SCHOOLS", 1, 0))
+
+# Sanity Check Lines
+NOVA2 %>% summarise(MeanLogPrice = mean(logPrice))
+NOVA2 %>% summarise(MeanLogPrice = mean(Arlington))
+
+```
+
+## Problem 2 - Linear Regression Inference
+### Part a. - Build the model and provide a summary
+
+```{r}
+model1 <- lm(logPrice ~ Bedrooms + Bathrooms + LivingSQFT + Arlington + Floors, data = NOVA2)
+summary(model1)
+```
+
+### Part b. - What is the relationship between bedrooms and logPrice after accounting for the other variables in the model?
+
+After accounting for the other variables, for each unit increase in the number of bedrooms, the log price increases by 0.1567. This is evidenced by
+the Estimate for the Bedrooms from the model summary.
+
+### Part c. - What proportion of the total variation in logPrice is explained by the model including the other variables?
+
+Using the multiple $R^2$ value from the table, approximately 73.33% of the variation in logPrice is explained by the variables used in the model.
+
+### Part d. - Should floors be added to the model for logPrice after accounting for the other variables in the model?
+
+Using the model summary, the t-statistic and p-value are 1.477 and 0.14, respectively. 
+These values suggest that the Floors variable should be removed from the model.
+
+## Problem 3 - Predictive Performance of the Linear Regression Model
+### Part a - Perform and 80/20 training/validation split using a seed of 92023
+
+```{r}
+set.seed(92023)
+train_ind <- sample(x = 1:nrow(NOVA2), size = floor(0.8*nrow(NOVA2)), replace = FALSE)
+set.seed(NULL)
+
+train <- NOVA2[train_ind,]
+validation <- NOVA2[-train_ind,]
+```
+
+### Part b. - Complete the table (Include code and RMSE calculations for ALL models)
+
+```{r}
+model1 <- lm(logPrice ~ Bedrooms + Bathrooms + LivingSQFT + Arlington, data = train)
+s1 <- summary(model1)
+model1_rsq <- s1$r.squared
+model1_adjrsq <- s1$adj.r.squared
+
+model1_MSEtrain <- mean((model1$residuals)^2)
+model1_RMSEtrain <- sqrt(model1_MSEtrain)
+
+yhatVal1 <- predict(model1, newdata = validation)
+model1_MSEval <- mean((validation$logPrice - yhatVal1)^2)
+model1_RMSEval <- sqrt(model1_MSEval)
+
+
+model2 <- lm(logPrice ~ Bedrooms + Bathrooms + LivingSQFT + Arlington + Floors, data = train)
+s2 <- summary(model2)
+model2_rsq <- s2$r.squared
+model2_adjrsq <- s2$adj.r.squared
+
+model2_MSEtrain <- mean((model2$residuals)^2)
+model2_RMSEtrain <- sqrt(model2_MSEtrain)
+
+yhatVal2 <- predict(model2, newdata = validation)
+model2_MSEval <- mean((validation$logPrice - yhatVal2)^2)
+model2_RMSEval <- sqrt(model2_MSEval)
+
+model3 <- lm(logPrice ~ Bedrooms + Bathrooms + LivingSQFT + Arlington + Floors + Garage + DistToWH, data = train)
+s3 <- summary(model3)
+model3_rsq <- s3$r.squared
+model3_adjrsq <- s3$adj.r.squared
+
+model3_MSEtrain <- mean((model3$residuals)^2)
+model3_RMSEtrain <- sqrt(model3_MSEtrain)
+
+yhatVal3 <- predict(model3, newdata = validation)
+model3_MSEval <- mean((validation$logPrice - yhatVal3)^2)
+model3_RMSEval <- sqrt(model3_MSEval)
+```
+
+|Model|Features Included | $R^2$ | $R^2_{adj}$ | Train RMSE | Validation RMSE 
+|:-----|:-----:|:-----:|:-----:|:-----:|:-----:|
+|1|Bedrooms, Bathrooms, LivingSQFT, Arlington | `r model1_rsq` | `r model1_adjrsq` | `r model1_RMSEtrain` | `r model1_RMSEval`
+|2|Bedrooms, Bathrooms, LivingSQFT, Arlington, Floors | `r model2_rsq` | `r model2_adjrsq` | `r model2_RMSEtrain` | `r model2_RMSEval`
+|3|Bedrooms, Bathrooms, LivingSQFT, Arlington, Floors, Garage, DistToWH | `r model3_rsq` | `r model3_adjrsq` | `r model3_RMSEtrain` | `r model3_RMSEval`
+
+
+### Part c. - Which model would you choose based on this data? Explain.
+
+Based on the results, model3 seems to be the most appropriate based on the lowest Validation RMSE. The validation RMSE provides insight into how the model
+will perform against new data. Additionally, model3 is able to explain more of the variation in the price compared to models 1 and 2.
+
+### Part d. - Calculate validation RMSE in dollars for Model 3 from Part b.
+
+```{r}
+yhatVal3 <- predict(model3, newdata = validation)
+yhatVal3_exp <- exp(yhatVal3)
+model3_MSEval <- mean((validation$Price - yhatVal3_exp)^2)
+model3_RMSEval_dollars <- sqrt(model3_MSEval)
+model3_RMSEval_dollars
+```
+
+The Root Mean Squared Error for model 3 is approximately `r round(model3_RMSEval_dollars / 1000, digits = 0)`000$. 
+
+## Problem 4 - Some Considerations
+### Part a. - What is happening with seed 92025
+
+```{r}
+set.seed(92025)
+train_ind <- sample(x = 1:nrow(NOVA2), size = floor(0.8*nrow(NOVA2)), replace = FALSE)
+set.seed(NULL)
+
+train <- NOVA2[train_ind,]
+validation <- NOVA2[-train_ind,]
+
+model3 <- lm(logPrice ~ Bedrooms + Bathrooms + LivingSQFT + Arlington + Floors + Garage + DistToWH, data = train)
+
+yhatVal3 <- predict(model3, newdata = validation)
+yhatVal3_exp <- exp(yhatVal3)
+
+resids <- abs(validation$Price - yhatVal3_exp)
+largest_residual <- max(resids)
+largest_residual_idx <- which.max(resids)
+```
+
+The largest residual using the validation set approach with seed 92025 is `r largest_residual` at index `r largest_residual_idx` in the validation dataset.
+
+```{r}
+validation[largest_residual_idx,]
+```
+
+The entry in the validation set that has the largest error seems to be related to a data quality problem. The LivingSQFT field has a value of 99999. For context, this number
+is equivalent to 2.29 acres despite only having a lot size of acres.
+
+## Problem 5 - Some Considerations 2
+### Part a. - What is causing the error message?
+```{r, error=TRUE}
+#Perform Training/Validation Split
+validation_inds <- c(411, 434, 443, 445, 446, 447, 448, 898)
+
+trainTemp <- NOVA[-validation_inds, ]
+validationTemp <- NOVA[validation_inds, ]
+
+#Build Model
+modelTemp <- lm(Price ~ LotSize + CountySchool, data = trainTemp)
+
+#Estimate RMSE on Validation Set
+yhatTemp <- predict(modelTemp, newdata = validationTemp)
+```
+
+
+
+```{r}
+table(validationTemp$CountySchool)
+table(train$CountySchool)
+```
+
+The problem with this final validation set is that it only has County School observations for "LOUDOUN COUNTY PUBLIC SCHOOLS" and "PRINCE WILLIAM COUNTY PUBLIC SCHOOLS"
+while the training set only has observations for "ARLINGTON COUNTY PUBLIC SCHOOLS" and "FAIRFAX COUNTY PUBLIC SCHOOLS". While determining the predictions with the
+validation set, R raises an exception due to the "new" factor levels.
+
+An approach that would make this split work would be to encode the `CountySchool` feature differently. For example:
+
+```{r, warning=FALSE}
+NOVA <- NOVA %>% mutate(
+  LOUDOUN = ifelse(CountySchool == "LOUDOUN COUNTY PUBLIC SCHOOLS", 1, 0),
+  WILLIAM = ifelse(CountySchool == "PRINCE WILLIAM COUNTY PUBLIC SCHOOLS", 1, 0),
+  ARLINGTON = ifelse(CountySchool == "ARLINGTON COUNTY PUBLIC SCHOOLS", 1, 0),
+  FAIRFAX = ifelse(CountySchool == "FAIRFAX COUNTY PUBLIC SCHOOLS", 1, 0),
+)
+
+validation_inds <- c(411, 434, 443, 445, 446, 447, 448, 898)
+
+trainTemp <- NOVA[-validation_inds, ]
+validationTemp <- NOVA[validation_inds, ]
+
+#Build Model
+modelTemp <- lm(Price ~ LotSize + LOUDOUN + WILLIAM + ARLINGTON + FAIRFAX, data = trainTemp)
+
+#Estimate RMSE on Validation Set
+yhatTemp <- predict(modelTemp, newdata = validationTemp)
+modeltemp_MSEval <- mean((validationTemp$Price - yhatTemp)^2)
+modeltemp_RMSEval <- sqrt(modeltemp_MSEval)
+modeltemp_RMSEval
+```
+
+The last model has a valdation RMSE of approximately `r round(modeltemp_RMSEval/1000, digits = 0)`000$

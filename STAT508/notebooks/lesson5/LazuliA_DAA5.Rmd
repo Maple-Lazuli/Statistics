@@ -1,0 +1,47 @@
+---
+title: "STAT508_DAA5"
+author: Name
+output: html_document
+date: "Due: Tuesday, February 24, 2026 by 11:59 PM"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1 - Best Subsets Selection Using Indirect Estimate of Test Error
+### Part a. - Identify the best model of each size for predicting dis 
+
+### Part b. - Identify the best model using the BIC values
+
+### Part c. - If using adjusted r-squared, are the results different? Explain.
+
+
+## Problem 2 - Best Subsets Selection Using Direct Estimate of Test Error
+### Part a. - Perform an 80/20 training/validation split using a seed of 123.
+
+### Part b. -	Use the best subsets approach to identify the best model of each size
+
+### Part c. -	What is the optimal number of variables that should be included based on the validation set MSE?
+
+
+
+## Problem 3 - Shrinkage/Regularization Methods
+### Part a - Prepare the data. Include an 80/20 training/validation split using a seed of 123
+
+### Part b. - Create plots of the coefficient paths for LASSO and Ridge
+
+### Part c. - For LASSO, choose the optimal value of the tuning parameter, lambda. 
+
+### Part d. - Using the value of lambda associated with the 1se rule, what variables remain in the LASSO model
+
+### Part e. - Using the LASSO model with optimal lambda based on the 1se rule, what is the validation set RMSE?
+
+### Part f. - Compare validation set RMSE values for various methods
+
+
+At the conclusion to the activity, you should upload
+
+1. your .html file named LastNameFirstInitial_508DAA5.html 
+2. your .Rmd file named LastNameFirstInitial_508DAA5.Rmd
+

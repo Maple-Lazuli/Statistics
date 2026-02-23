@@ -1,0 +1,552 @@
+---
+title: "U2L5 - Feature Selection and Regulariation"
+output: html_document
+date: "Type date here"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+library(gridExtra)
+library(ISLR2)
+library(leaps) #Not used before (may need to install)
+library(glmnet) #Not used before (may need to install); used for LASSO/Ridge
+
+```
+
+## Example - Illustrating the Bias-Variance Tradeoff
+#### User defined functions for this problem
+```{r}
+f = function(x) {
+  #This is the true regression function
+  x ^ 2
+}
+
+gen_sim_data = function(f, sample_size = 100) {
+  #This function randomly generates a dataset of sample_size observations using y = f(x) + epsilon
+  x = runif(n = sample_size, min = 0, max = 1) #randomly generate x's
+  eps = rnorm(n = sample_size, mean = 0, sd = sqrt(0.5625)) #randomly generate noise
+  y = f(x) + eps #generate y's using the regression form
+  tibble(x, y)
+}
+
+get_mse <- function(truth, estimate) {
+  #This function calculates the MSE 
+  mean((estimate - truth) ^ 2)
+}
+
+get_bias <- function(estimate, truth) {
+  #This function calculates the bias
+  mean(estimate) - truth
+}
+
+get_var <- function(estimate) {
+  #This function calculates the variance 
+  mean((estimate - mean(estimate)) ^ 2)
+}
+```
+
+#### Randomly generate a dataset; plot dataset and the true regression form
+```{r}
+#Randomly Generate a Dataset
+set.seed(1)
+sim_data <- gen_sim_data(f)
+
+#Plot the dataset and the true regression function
+SimulatedData <- 
+  ggplot(data = sim_data, mapping = aes(x = x, y = y)) +
+  geom_point(alpha = 0.35, size = 2) +
+  geom_line(data = data.frame(x = seq(0, 1, 0.001), 
+                              y = f(seq(0, 1, 0.001))),
+            mapping = aes(x = x, y = y),
+            linewidth = 1)
+
+SimulatedData
+```
+
+#### Plot Each estimated line
+```{r}
+#Fit the models
+fit_0 = lm(y ~ 1,                   data = sim_data)
+fit_1 = lm(y ~ poly(x, degree = 1), data = sim_data)
+fit_2 = lm(y ~ poly(x, degree = 2), data = sim_data)
+fit_9 = lm(y ~ poly(x, degree = 9), data = sim_data)
+
+#Create plots of the estimated models
+#Plot of Degree 0 model
+degree0 <-
+  SimulatedData + 
+  geom_line(data = data.frame(x = seq(0,1,0.001), y = predict(fit_0, data.frame(x=seq(0,1,0.001)))), color = "orange", linetype = "dashed",
+            linewidth = 1) +
+  labs(title = "Degree 0")
+
+degree0
+
+degree1 <-
+  SimulatedData + 
+  geom_line(data = data.frame(x = seq(0,1,0.001), y = predict(fit_1, data.frame(x=seq(0,1,0.001)))), color = "red", linetype = "dashed",
+            linewidth = 1) +
+  labs(title = "Degree 1")
+
+degree1
+
+degree2 <-
+  SimulatedData + 
+  geom_line(data = data.frame(x = seq(0,1,0.001), y = predict(fit_2, data.frame(x=seq(0,1,0.001)))), color = "blue", linetype = "dashed",
+            linewidth = 1) +
+  labs(title = "Degree 2")
+
+degree2
+
+degree9 <-
+  SimulatedData + 
+  geom_line(data = data.frame(x = seq(0,1,0.001), y = predict(fit_9, data.frame(x=seq(0,1,0.001)))), color = "purple", linetype = "dashed",
+            linewidth = 1) +
+  labs(title = "Degree 9")
+
+degree9
+```
+
+#### Create one plot showing all four models
+```{r}
+gridExtra::grid.arrange(degree0, degree1, degree2, degree9, ncol = 2)
+```
+
+#### Illustrating Variance 
+```{r}
+#Illustrate Variance for Highly Flexible (degree = 9) Model
+set.seed(123)
+plot_list <- list()
+for(i in 1:4){
+  sim_data <- gen_sim_data(f)
+  
+  fit_temp = lm(y ~ poly(x, degree = 9), data = sim_data)
+  
+  plot_list[[i]] <-
+  ggplot(sim_data, mapping = aes(x=x, y = y)) +
+    geom_point(alpha = 0.35) + 
+    geom_line(data = data.frame(x = seq(0,1,0.001), y = predict(fit_temp, data.frame(x=seq(0,1,0.001)))), color = "purple", linewidth = 1) +
+    geom_segment(x = 0.9, y = 0, xend = 0.9,
+                 yend = predict(fit_temp, data.frame(x = 0.9)),
+                 color = "red", linewidth = 1) +
+  labs(title = paste("Dataset ", i, sep = ""))
+}
+
+#Display results
+gridExtra::grid.arrange(plot_list[[1]], plot_list[[2]], plot_list[[3]], plot_list[[4]],ncol = 2)
+
+#Illustrate Variance for Highly Inflexible (degree = 0) Model
+set.seed(123)
+plot_list <- list()
+for(i in 1:4){
+  sim_data <- gen_sim_data(f)
+  
+  fit_temp = lm(y ~ 1, data = sim_data)
+  
+  plot_list[[i]] <-
+  ggplot(sim_data, mapping = aes(x=x, y = y)) +
+    geom_point(alpha = 0.35) + 
+    geom_line(data = data.frame(x = seq(0,1,0.001), y = predict(fit_temp, data.frame(x=seq(0,1,0.001)))), color = "orange", linewidth = 1) +
+    geom_segment(x = 0.9, y = 0, xend = 0.9,
+                 yend = predict(fit_temp, data.frame(x = 0.9)),
+                 color = "red", linewidth = 1) +
+  labs(title = paste("Dataset ", i, sep = ""))
+}
+
+#Display the results
+gridExtra::grid.arrange(plot_list[[1]], plot_list[[2]], plot_list[[3]], plot_list[[4]],ncol = 2)
+```
+
+#### Simulation Study
+```{r}
+#Initialize
+set.seed(1)
+n_sims <- 300
+n_models <- 4
+x <-  data.frame(x = 0.90) # fixed point at which we make predictions
+predictions <- matrix(0, nrow = n_sims, ncol = n_models)
+
+for (sim in 1:n_sims) {
+  
+  # simulate new, random, training data
+  # this is the only random portion of the bias, var, and mse calculations
+  # this allows us to calculate the expectation over D
+  sim_data <- gen_sim_data(f)
+  
+  # fit models
+  fit_0 <- lm(y ~ 1,                   data = sim_data)
+  fit_1 <- lm(y ~ poly(x, degree = 1), data = sim_data)
+  fit_2 <- lm(y ~ poly(x, degree = 2), data = sim_data)
+  fit_9 <- lm(y ~ poly(x, degree = 9), data = sim_data)
+  
+  # get predictions
+  predictions[sim, 1] <- predict(fit_0, x)
+  predictions[sim, 2] <- predict(fit_1, x)
+  predictions[sim, 3] <- predict(fit_2, x)
+  predictions[sim, 4] <- predict(fit_9, x)
+}
+
+#Convert from wide form to long form for plotting
+predictions_long <- 
+  as.data.frame(predictions) %>%
+  pivot_longer(cols = c(V1, V2, V3, V4), names_to = "degree", names_prefix = "V") %>%
+  mutate(degree = case_when(degree == "1" ~ "0",
+                            degree == "2" ~ "1",
+                            degree == "3" ~ "2",
+                            degree == "4" ~ "9"))
+
+#Create plot showing predicted values for x0 = 0.9
+set.seed(123) #This seed is for random jitter
+ggplot(data = predictions_long, mapping = aes(x = degree, y = value)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(aes(color = degree), alpha = 0.5, shape = 1, position = "jitter") +
+  geom_hline(yintercept = f(0.9), color = "black", linetype = "dashed") +
+  labs(x = "Degree of Polynomial", 
+       y = "Prediction") + 
+  theme(legend.position="none")
+
+
+
+#Calculate Summaries of simulation study
+bias <- apply(predictions, 2, get_bias, truth = f(x = 0.90))
+variance <- apply(predictions, 2, get_var)
+mse <- apply(predictions, 2, get_mse, truth = f(x = 0.90))
+
+#Display the results
+sim_results <- data.frame(Degree = c(0,1,2,9),
+                          MSE = mse,
+                          Bias = bias,
+                          BiasSquared = bias^2,
+                          Variance = variance)
+
+round(sim_results, digits = 4)
+#cbind(mse,bias^2,variance)
+
+```
+
+
+## Example - Best Subsets Using Indirect Estimates of Test Error
+#### Part a
+```{r}
+#Create a copy of the dataset in the Environment
+data("Credit")
+
+#Perform Best Subsets
+regfitBS <- regsubsets(Balance ~ ., data = Credit, nvmax = 11)
+
+#Display the summary
+summary(regfitBS)
+```
+
+#### Part b - Which variables are included in the best 3 variable model?
+
+The variables included in the best 3 variable model are:
+
+Income, Rating, StudentYes
+
+#### Part c - Store the summary of the best subset selection process
+```{r}
+#Store the summary
+regfitBSsummary <- summary(regfitBS)
+```
+
+#### Part d - View, pick the best model based on BIC, plot BIC, and find variables in the model
+```{r}
+#Part i - View the BIC values
+ #similar options for rsq, rss, adjr2, and cp
+regfitBSsummary$bic
+#Part ii - Determine the size of the model associated with the best (smallest) BIC value
+optSizeBIC <- which.min(regfitBSsummary$bic)
+optSizeBIC
+#Part iii - Plot the BIC values
+#First create a data frame
+BICdf <- data.frame(Model = 1:nrow(regfitBSsummary$outmat), BIC = regfitBSsummary$bic)
+  
+#Create a plot
+ggplot(data = BICdf, mapping = aes(x = Model,y = BIC)) + geom_line() + geom_point() +
+  scale_x_continuous(breaks = c(1:nrow(regfitBSsummary$outmat))) + 
+  geom_point(data = BICdf[optSizeBIC, ], color = "red", size = 3) +
+  labs(x = "Num Features", y = "BIC")
+  
+#Part iv - Which variables remain?
+coef(regfitBS, id = optSizeBIC)
+```
+
+#### Part e - View, pick the best model based on Adjusted $R^2$, plot Adjusted $R^2$, and find variables in the model
+```{r}
+#Part i - View the Adjusted R^2 values
+regfitBSsummary$adjr2 #similar options for rsq, rss, adjr2, and cp
+
+#Part ii - Determine the size of the model associated with the best (largest) Adjusted R^2 value
+optSizeAdjR2 <- which.max(regfitBSsummary$adjr2)
+optSizeAdjR2
+
+#Part iii - Plot the Adjusted R^2 values
+#First create a data frame
+AdjR2df <- data.frame(Model = 1:nrow(regfitBSsummary$outmat),
+                    AdjR2 = regfitBSsummary$adjr2)
+
+
+#Create a plot
+ggplot(data = AdjR2df, mapping = aes(x = Model, y = AdjR2)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = c(1:11)) + 
+  labs(x = "Number of Features in the Model",
+       y = expression("Adjusted " * R^2 * " Value")) + #expression() is for getting exponent of 2 into title
+  geom_point(data = AdjR2df[optSizeAdjR2,] , color = "red", size = 3)
+
+#Part iv - Which variables remain?
+coef(regfitBS, id = optSizeAdjR2)
+```
+
+## Example - Best Subsets Using Direct Estimates of Test Error (Validation Set Approach)
+#### Part a - 80/20 training/validation split using a seed of 123
+```{r}
+#Random select 80% of the row numbers to identify the training set
+set.seed(123)
+trainInd <- sample(1:nrow(Credit), floor(0.8*nrow(Credit)), replace = FALSE)
+
+#Create training and validation sets
+train <- Credit[trainInd, ]
+validation <- Credit[ -trainInd,]
+```
+
+#### Part b - Use the best subsets approach to identify the best model of each size
+```{r}
+#Apply the best subsets appraoch the training data
+regfitBSval <- regsubsets(Balance ~ ., nvmax = 11, data = train)
+
+#Display the summary
+summary(regfitBSval)
+```
+
+#### Part c - Create and display the data matrix for validation set
+```{r}
+#Create data matrix
+validationMat <- model.matrix(Balance ~ ., data = validation)
+
+#Display first 6 rows
+head(validationMat, 6)
+```
+
+#### Part d - Use a loop to obtain predictions and MSE for validation set for optimal model of each size
+```{r}
+#Initialize 
+numModels <- ncol(validationMat) - 1 
+valMSE <- rep(NA, numModels) #Repeats NA numModels times (11 in this problem)
+
+#Loop to cycle through the models of different sizes
+for (i in 1:numModels){
+  coefi <- coef(regfitBSval, id = i) #Extract coefficients for model with i variables
+  yhat <- validationMat[, names(coefi)] %*% coefi #yhat = X %*% betahat
+  valMSE[i] <- mean((validation$Balance - yhat)^2) #Calculate and store val. set mse
+}
+
+#Display validation set MSE values
+valMSE
+
+#Determine which size produced the optimal
+optSizeVal <- which.min(valMSE)
+optSizeVal
+
+#Create a plot of Validation Set MSE's
+#First create a data frame
+valMSEdf <- data.frame(Model = 1:numModels,
+                       MSE = valMSE)
+
+#Create a plot of Validation Set MSE's
+ggplot(data = valMSEdf, mapping = aes(x = Model, y = MSE)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = c(1:11)) + 
+  labs(x = "Number of Features in the Model",
+       y = "Validation Set MSE") +
+  geom_point(data = valMSEdf[optSizeVal,] , color = "red", size = 3)
+
+#Display the coefficients of the optimal model (coefficients were estimated using train)
+coef(regfitBS, id = optSizeVal)
+```
+
+
+## Example - Applying Shrinkage Methods in R
+#### Part a - Preparing the data for glmnet
+```{r}
+#Create a copy of Credit in the Environment
+data("Credit")
+
+#Create input matrix and response vector
+Xmat <- model.matrix(Balance ~ ., data = Credit)[, -1]
+yvec <- Credit$Balance
+
+
+#Perform training/validation split
+set.seed(1)
+trainInd <- sample(1:nrow(Credit), floor(0.8*nrow(Credit)), replace = FALSE)
+
+set.seed(NULL)
+#Split Xmat and yvec separately
+XmatTrain <- Xmat[trainInd,]
+XmatVal <- Xmat[-trainInd,]
+yvecTrain <- yvec[trainInd]
+yvecVal <- yvec[-trainInd]
+
+```
+
+#### Part b - Build the LASSO model and plot the coefficient paths
+```{r}
+#Fit the LASSO model (let R choice lambda sequence)
+lassoModel <- glmnet(x = XmatTrain, y = yvecTrain,
+                    family = "gaussian",
+                    alpha = 1,
+                    lambda = NULL,
+                    standardize = TRUE)
+
+#Create a plot of the coefficient paths
+plot(lassoModel, xvar = "lambda", label = TRUE)
+```
+
+#### Part c - Build the Ridge model and plot the coefficient paths
+```{r}
+#Fit the Ridge model (let R choice lambda sequence)
+ridgeModel <- glmnet(x = XmatTrain, y = yvecTrain,
+                     family = "gaussian",
+                     alpha = 0, 
+                     lambda = NULL,
+                     standardize = TRUE)
+
+#Create a plot of the coefficient paths
+plot(ridgeModel, xvar = "lambda", label = TRUE)
+```
+
+#### Part d - For the LASSO models Extract 44th value of lambda and associated coefficients
+```{r}
+#Extract the 44th value of lambda
+lassoModel$lambda[44]
+
+#Calculate the log of the 44th value of lambda (doing this since the plot of coefficient paths used log(lambda))
+log(lassoModel$lambda[44])
+
+#Obtain coefficients associated with 44th value of lambda
+predict(lassoModel, s = lassoModel$lambda[44], type = "coefficients")
+
+#Add vertical line at 44th lambda on coefficients plot
+plot(lassoModel, xvar = "lambda", label = TRUE)
+abline(v = log(lassoModel$lambda[44]), col = "red")
+```
+
+
+#### Part e - Pick Optimal Value of Lambda
+```{r}
+#Use 10-fold CV to pick lambda for LASSO
+set.seed(123)
+lassoCV <- cv.glmnet(x = XmatTrain, y = yvecTrain,
+                    family = "gaussian",
+                    alpha = 1, 
+                    lambda = NULL,
+                    standardize = TRUE,
+                    nfolds = 10)
+set.seed(NULL)
+
+#Show the LASSO CV results
+plot(lassoCV)
+```
+
+```{r}
+#Use 10-fold CV to pick lambda for Ridge
+set.seed(123)
+ridgeCV <- cv.glmnet(x = XmatTrain, y = yvecTrain,
+                    family = "gaussian",
+                    alpha = 0, 
+                    lambda = NULL,
+                    standardize = TRUE,
+                    nfolds = 10)
+set.seed(NULL)
+
+#Show the Ridge CV results
+plot(ridgeCV)
+```
+
+#### Part f - Display the optimal values of lambda and the associated coefficients
+```{r}
+#Display the optimal values of lambda
+lassoCV$lambda.min
+lassoCV$lambda.1se
+
+#Store the coefficients associated with the optimal values
+coefLamMin <- predict(lassoCV, s = lassoCV$lambda.min, type = "coefficients")
+coefLam1se <- predict(lassoCV, s = lassoCV$lambda.1se, type = "coefficients")
+
+#Create a data frame for comparing the coefficients
+tempdf <- 
+  data.frame(Variable = row.names(coefLamMin), 
+             lamMin = as.numeric(coefLamMin), 
+             lam1se = as.numeric(coefLam1se))
+
+tempdf
+```
+
+
+#### Part g - Obtain Preditions for Validation Set and calculate RMSE
+```{r, eval = FALSE}
+#LASSO
+lassoYhat <- predict(lassoCV, s = lassoCV$lambda.min, newx = XmatVal) 
+lassoMSE <-  mean((yvecVal - lassoYhat)^2)
+lassoRMSE <- sqrt(lassoMSE)
+lassoRMSE
+
+#Ridge
+ridgeYhat <- predict(ridgeCV, s = ridgeCV$lambda.min, newx = XmatVal) 
+ridgeMSE <-  mean((yvecVal - ridgeYhat)^2)
+ridgeRMSE <- sqrt(ridgeMSE)
+ridgeRMSE
+
+
+#Least Squares (train and validation are not the same as we used in cv.glmnet)
+train <- Credit[trainInd, ]
+validation <- Credit[-trainInd,]
+lsModel <- lm(Balance ~ ., data = train)
+lsYhat <- predict(lsModel, newdata = validation)
+
+lsMSE <- mean((validation$Balance - lsYhat)^2)
+lsRMSE <- sqrt(lsMSE)
+lsRMSE
+```
+
+```{r}
+library(ISLR2)
+library(leaps)
+data("Auto")
+Auto2 <- Auto[, !(names(Auto) %in% c("origin", "name"))]
+Auto2 <- subset(Auto, select = -c(origin, name))
+regfit.full <- regsubsets(acceleration ~ ., data = Auto2, nvmax = 7)
+reg.summary <- summary(regfit.full)
+reg.summary
+```
+
+```{r}
+library(ISLR2)
+library(leaps)
+
+data("Auto")
+Auto2 <- subset(Auto, select = -c(origin, name))
+regfit.full <- regsubsets(acceleration ~ ., data = Auto2, nvmax = 7)
+reg.summary <- summary(regfit.full)
+which.min(reg.summary$bic)
+reg.summary$which[which.min(reg.summary$bic), ]
+```
+
+```
+
+
+
+
+

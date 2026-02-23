@@ -1,47 +1,263 @@
 ---
 title: "STAT508_DAA5"
-author: Name
+author: "Ada Lazuli"
 output: html_document
-date: "Due: Tuesday, February 24, 2026 by 11:59 PM"
+date: "February 24, 2026"
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Front Matter
+```{r, message=FALSE, warning=FALSE}
+remove(list = ls()) 
+library(tidyverse)
+library(gridExtra)
+library(ISLR2)
+library(leaps)
+library(glmnet)
+library(reactable) 
+library(dplyr)
+```
+
 ## Problem 1 - Best Subsets Selection Using Indirect Estimate of Test Error
 ### Part a. - Identify the best model of each size for predicting dis 
 
+```{r}
+data("Boston")
+regfitBS <- regsubsets(dis ~ ., data = Boston, nvmax = ncol(Boston) - 1)
+summary(regfitBS)
+```
+
 ### Part b. - Identify the best model using the BIC values
+
+```{r}
+regfitBSsummary <- summary(regfitBS)
+
+optSizeBIC <- which.min(regfitBSsummary$bic)
+
+BICdf <- data.frame(Model = 1:nrow(regfitBSsummary$outmat), BIC = regfitBSsummary$bic)
+  
+ggplot(data = BICdf, mapping = aes(x = Model,y = BIC)) + geom_line() + geom_point() +
+  scale_x_continuous(breaks = c(1:nrow(regfitBSsummary$outmat))) + 
+  geom_point(data = BICdf[optSizeBIC, ], color = "red", size = 3) +
+  labs(x = "Num Features", y = "BIC")
+```
+
+Based on the plot, there is some ambiguity between whether 5 or 6 features would yield a better model. If 5 features are chosen, the BIC is a little worse but
+the model is easier to interpret. The model with 6 features has a better BIC, but the the additional feature reduces the ambiguity.
+
+Using strictly the best BIC, the 6 features in the model would consist of:
+
+1. `crim`
+2. `zn`
+3. `indus`
+4. `nox`
+5. `age`
+6. `medv`
 
 ### Part c. - If using adjusted r-squared, are the results different? Explain.
 
+```{r}
+optSizeBIC <- which.min(regfitBSsummary$bic)
+optSizeAdjR2 <- which.max(regfitBSsummary$adjr2)
+AdjR2df <- data.frame(Model = 1:nrow(regfitBSsummary$outmat),
+                    AdjR2 = regfitBSsummary$adjr2)
+  
+ggplot(data = AdjR2df, mapping = aes(x = Model, y = AdjR2)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = c(1:11)) + 
+  labs(x = "Number of Features in the Model",
+       y = expression("Adjusted " * R^2 * " Value")) +
+  geom_point(data = AdjR2df[optSizeAdjR2,] , color = "red", size = 3)
+```
+
+If $R^2_{adj}$ was used instead, it seems that the model with 7 features is better because it can explain more of the variability in `dis`.
+
+The model with 7 features has all of the features the model chosen earlier, but also includes `lstat`
 
 ## Problem 2 - Best Subsets Selection Using Direct Estimate of Test Error
 ### Part a. - Perform an 80/20 training/validation split using a seed of 123.
 
+```{r}
+set.seed(123)
+trainInd <- sample(1:nrow(Boston), floor(0.8*nrow(Boston)), replace = FALSE)
+
+train <- Boston[trainInd, ]
+validation <- Boston[ -trainInd,]
+```
+
 ### Part b. -	Use the best subsets approach to identify the best model of each size
+
+```{r}
+regfitBSval <- regsubsets(dis ~ ., data = train, nvmax = ncol(Boston) - 1)
+regfitBSsummary <- summary(regfitBSval)
+
+regfitBSsummary
+
+optSizeBIC <- which.min(regfitBSsummary$bic)
+
+BICdf <- data.frame(Model = 1:nrow(regfitBSsummary$outmat), BIC = regfitBSsummary$bic)
+  
+ggplot(data = BICdf, mapping = aes(x = Model,y = BIC)) + geom_line() + geom_point() +
+  scale_x_continuous(breaks = c(1:nrow(regfitBSsummary$outmat))) + 
+  geom_point(data = BICdf[optSizeBIC, ], color = "red", size = 3) +
+  labs(x = "Num Features", y = "BIC")
+```
+
+After training on the training set, there is ambiguity between whether 6 or 7 features should be used. Performance on the validation will be used to make the final
+decision.
 
 ### Part c. -	What is the optimal number of variables that should be included based on the validation set MSE?
 
+```{r}
+validationMat <- model.matrix(dis ~ ., data = validation)
 
+numModels <- ncol(validationMat) - 1 
+valMSE <- rep(NA, numModels)
+
+for (i in 1:numModels){
+  coefi <- coef(regfitBSval, id = i)
+  yhat <- validationMat[, names(coefi)] %*% coefi
+  valMSE[i] <- mean((validation$dis - yhat)^2) 
+}
+
+optSizeVal <- which.min(valMSE)
+
+valMSEdf <- data.frame(Model = 1:numModels,
+                       MSE = valMSE)
+
+ggplot(data = valMSEdf, mapping = aes(x = Model, y = MSE)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = c(1:11)) + 
+  labs(x = "Number of Features in the Model",
+       y = "Validation Set MSE") +
+  geom_point(data = valMSEdf[optSizeVal,] , color = "red", size = 3)
+
+```
+
+Based on the results of Validation set MSE, the optimal number of features is 6. The 6 features would still be
+
+1. `crim`
+2. `zn`
+3. `indus`
+4. `nox`
+5. `age`
+6. `medv`
 
 ## Problem 3 - Shrinkage/Regularization Methods
 ### Part a - Prepare the data. Include an 80/20 training/validation split using a seed of 123
 
+```{r}
+Xmat <- model.matrix(dis ~ ., data = Boston)[, -1]
+yvec <- Boston$dis
+set.seed(123)
+trainInd <- sample(1:nrow(Boston), floor(0.8*nrow(Boston)), replace = FALSE)
+set.seed(NULL)
+XmatTrain <- Xmat[trainInd,]
+XmatVal <- Xmat[-trainInd,]
+yvecTrain <- yvec[trainInd]
+yvecVal <- yvec[-trainInd]
+```
+
 ### Part b. - Create plots of the coefficient paths for LASSO and Ridge
+
+
+
+```{r}
+lassoModel <- glmnet(x = XmatTrain, y = yvecTrain,
+                    family = "gaussian",
+                    alpha = 1,
+                    lambda = NULL,
+                    standardize = TRUE)
+
+#Create a plot of the coefficient paths
+plot(lassoModel, xvar = "lambda", label = TRUE, sub = "LASSO Coefficient Paths")
+```
+
+```{r}
+ridgeModel <- glmnet(x = XmatTrain, y = yvecTrain,
+                     family = "gaussian",
+                     alpha = 0, 
+                     lambda = NULL,
+                     standardize = TRUE)
+
+#Create a plot of the coefficient paths
+plot(ridgeModel, xvar = "lambda", label = TRUE, sub = "Ridge Coefficient Paths")
+```
 
 ### Part c. - For LASSO, choose the optimal value of the tuning parameter, lambda. 
 
+```{r}
+set.seed(123)
+lassoCV <- cv.glmnet(x = XmatTrain, y = yvecTrain,
+                    family = "gaussian",
+                    alpha = 1, 
+                    lambda = NULL,
+                    standardize = TRUE,
+                    nfolds = 10)
+set.seed(NULL)
+
+#Show the LASSO CV results
+plot(lassoCV)
+```
+
+There are a couple of methods for choosing lambda. Based on the 1 standard error rule, the optimal value is `r lassoCV$lambda.1se`. The optimal value of lambda based 
+on the min rule is `r lassoCV$lambda.min`
+
 ### Part d. - Using the value of lambda associated with the 1se rule, what variables remain in the LASSO model
 
+```{r}
+coefLam1se <- predict(lassoCV, s = lassoCV$lambda.1se, type = "coefficients")
+tempdf <- data.frame(Variable = row.names(coefLam1se), lam1se = as.numeric(coefLam1se))
+reactable(tempdf %>% filter(abs(lam1se) > 0), searchable = FALSE, compact = TRUE, striped = TRUE, defaultPageSize = 13, showPageSizeOptions = FALSE)
+```
+
+The variables in the lasso model are:
+
+1. `crim`
+2. `zn`
+3. `indus`
+4. `nox`
+5. `age`
+6. `medv`
+
 ### Part e. - Using the LASSO model with optimal lambda based on the 1se rule, what is the validation set RMSE?
+```{r}
+lassoYhat <- predict(lassoCV, s = lassoCV$lambda.min, newx = XmatVal) 
+lassoMSE <-  mean((yvecVal - lassoYhat)^2)
+lassoRMSE <- sqrt(lassoMSE)
+lassoRMSE
+```
+
+The lasso RMSE based on the validation set is: `r lassoRMSE`
 
 ### Part f. - Compare validation set RMSE values for various methods
 
+```{r}
+set.seed(123) # not asked for, but for repeatability
+ridgeCV <- cv.glmnet(x = XmatTrain, y = yvecTrain,
+                    family = "gaussian",
+                    alpha = 0, 
+                    lambda = NULL,
+                    standardize = TRUE,
+                    nfolds = 10)
+ridgeYhat <- predict(ridgeCV, s = ridgeCV$lambda.min, newx = XmatVal) 
+ridgeMSE <-  mean((yvecVal - ridgeYhat)^2)
+ridgeRMSE <- sqrt(ridgeMSE)
 
-At the conclusion to the activity, you should upload
+train <- Boston[trainInd, ]
+validation <- Boston[-trainInd,]
+lsModel <- lm(dis ~ crim + zn + indus + nox + age + medv, data = train)
+lsYhat <- predict(lsModel, newdata = validation)
 
-1. your .html file named LastNameFirstInitial_508DAA5.html 
-2. your .Rmd file named LastNameFirstInitial_508DAA5.Rmd
+lsMSE <- mean((validation$dis - lsYhat)^2)
+lsRMSE <- sqrt(lsMSE)
+data.frame(metric = "Validation RMSE", "Lasso" = lassoRMSE, "Ridge"= ridgeRMSE, "Least Squares" = lsRMSE)
+```
 
+LASSO and Ridge produced very similar RMSE scores on the validation set, with LASSO performing marginally better. The Lease Squares method produced the lowest
+RMSE score on the validation set.

@@ -1,0 +1,220 @@
+---
+title: "U2L6 - Dimension Reduction in Regression"
+output: html_document
+date: "Type date here"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+library(ISLR2)
+library(pls) #used for building PCR and PLS models
+```
+
+## Motivating Example
+#### Simulate a dataset
+```{r}
+# Set random seed for reproducibility
+set.seed(123)
+
+# Number of observations and predictor variables
+n <- 50  # Number of observations
+p <- 75  # Number of predictor variables
+
+# Create random predictor variables
+X <- matrix(rnorm(n * p), nrow = n)
+
+# Create random coefficients for the predictor variables (no intercept)
+beta <- rnorm(p)
+
+# Create the response variable as a linear combination of predictor variables (including an intercept of 3)
+Y <- 3 + X %*% beta + rnorm(n)
+
+# Create a dataframe for the dataset
+df <- data.frame(Response = Y, as.data.frame(X))
+```
+
+
+#### Part a. - Linear regression on Simulated Dataset
+```{r}
+model1 <- lm(Response ~ ., data = df)
+summary(model1)
+```
+
+
+## Example - Applying PCR in R
+#### Part a. - Prepare the data
+```{r}
+#Create a copy of the Hitters dataset in your Environment
+data(Hitters)
+
+#Omit any player that has a missing value in at least one variable
+Hitters <- na.omit(Hitters)
+
+#Perform an 80/20 training/validation split using a seed of 123
+set.seed(123)
+trainInd <- sample(1:nrow(Hitters), floor(0.8 * nrow(Hitters)), replace = FALSE)
+set.seed(NULL)
+
+#Create training and validation datasets
+train <- Hitters[trainInd,]
+validation <- Hitters[-trainInd,]
+
+```
+
+#### Part b. - Understanding the algorithm
+```{r}
+#Perform PCA on the Input centered and scaled input data
+#Prepare the data
+Xmat <- model.matrix(Salary ~ ., data = train)[, -1] # This will create the indicator variables
+#Perform PCA
+praRes <- prcomp(x = Xmat, center = TRUE, scale. = TRUE)
+
+#Check Proportion of Total Variance Explained
+# protion of variance explained
+PVE <- praRes$sdev^2 / sum(praRes$sdev^2)
+PVE
+cPVE <- cumsum(PVE)
+cPVE
+#Use the 1st 2 PCs as the inputs into a linear regression model for Salary
+#Create a data frame (tempdf) containing salary and the scores for first 2 PC's
+tempdf <- data.frame(Salary = train$Salary, PC1 = praRes$x[,1], PC2 = praRes$x[,2])
+#Build a linear regression model
+linReg2PC <- lm(Salary ~ PC1 + PC2, data = tempdf)
+summary(linReg2PC)
+```
+
+- What proportion of the total variance is explained using the first 2 PCs? `r cPVE[2]`
+
+- What proportion of the total variation in Salary is explained by the linear regression model using the first 2 PCs? Multiple R-squared: 0.4629
+
+
+#### Part c. - Fit the a PCR model using the pcr() function
+```{r}
+#Perform PCR
+set.seed(1)
+pcrFit <- pcr(Salary ~ ., data = train, center = TRUE, scale = TRUE, validation = "CV", segments = 10) # use "LOOV" for leave one out
+set.seed(NULL)
+summary(pcrFit)
+```
+
+
+#### Part d. - Create a plot showing the cross validation error. 
+```{r}
+#Extract RMSE values for the cross validation procedure
+tempRMSE <- RMSEP(pcrFit)
+
+#Create object (ggplotDF) for visualizing
+ggplotDF <- data.frame(Components = 0:19, 
+                       RMSE = tempRMSE$val[1, , ]) #Use [2, , ] for adjusted CV values
+
+#Determine the optimal (lowest) CV RMSE
+optMpcr <- which.min(tempRMSE$val[1, , ]) 
+
+#Create Plot
+ggplot(data = ggplotDF, mapping = aes(x = Components, y = RMSE)) +
+  geom_line() +
+  geom_point() +
+  geom_point(data = ggplotDF[optMpcr,], color = "red", shape = 1, size = 4) +
+  scale_x_continuous(breaks = seq(0, 20, 2)) +
+  labs(x = "Number of Components",
+       y = "RMSE (from 10-fold CV)")
+```
+
+
+#### Part e. - Compute the validation set RMSE
+```{r}
+#Obtain predictions based on the optimal number of components
+yhatPCR <- predict(pcrFit, newdata = validation, ncomp = 16)
+#Calculate MSE and RMSE
+MSEpcr <- mean((validation$Salary - yhatPCR)^2)
+RMSEpcr <- sqrt(MSEpcr)
+RMSEpcr
+```
+
+## Example - Applying PLS in R
+#### Part a. - Prepare the data
+```{r}
+#####There is really no need to run this code as long as you have trainInd, train, and validation in your Environment from the PCR example#######
+
+#Create a copy of the Hitters dataset in your Environment
+data(Hitters)
+
+#Omit any player that has a missing value in at least one variable
+Hitters <- na.omit(Hitters)
+
+#Perform an 80/20 training/validation split using a seed of 123
+set.seed(123)
+trainInd <- sample(1:nrow(Hitters), floor(0.8*nrow(Hitters)), replace = FALSE)
+set.seed(NULL)
+
+train <- Hitters[trainInd, ]
+validation <- Hitters[-trainInd, ]
+```
+
+
+#### Part b. - Fit the a PLS model using the plsr() function
+```{r}
+#Perform PLS
+set.seed(1)
+plsFit <- plsr(Salary ~ ., data = train,
+               center = TRUE, scale = TRUE,
+               validation = "CV", segments = 10) # segmentation = folds
+summary(plsFit)
+```
+
+#### Part c. - Create a plot showing the cross validation error. 
+```{r}
+#Extract RMSE values for the cross validation procedure
+tempRMSE <- RMSEP(plsFit)
+
+#Create object (ggplotDF) for visualizing
+ggplotDF <- data.frame(Components = 0:19, 
+                       RMSE = tempRMSE$val[1, , ]) #Use [2, , ] for adjusted CV values
+
+#Determine the optimal (lowest) CV RMSE
+optMpls <- which.min(tempRMSE$val[1, , ]) 
+
+#Create Plot
+ggplot(data = ggplotDF, mapping = aes(x = Components, y = RMSE)) +
+  geom_line() +
+  geom_point() +
+  geom_point(data = ggplotDF[optMpls,], color = "red", shape = 1, size =4 ) +
+  scale_x_continuous(breaks = seq(0, 20, 2)) +
+  labs(x = "Number of Components",
+       y = "RMSE (from 10-fold CV)")
+```
+
+
+#### Part d. - Compute the validation set RMSE
+```{r}
+#Obtain predictions based on the optimal number of components
+yhatPLS <- predict(plsFit, newdata = validation, ncomp = 8)
+#Calculate MSE and RMSE
+MSEpls <- mean((validation$Salary - yhatPLS)^2)
+RMSEpls <- sqrt(MSEpls)
+RMSEpls
+```
+
+#### Part e. - Compare the methods
+```{r}
+#Fit a regular linear regression model using least-squares
+linRegModel <- lm(Salary ~ ., data = train)
+#Obtain Predictions
+yhatLR <- predict(linRegModel, newdata = validation)
+#Calculate MSE and RMSE
+MSElr <- mean((validation$Salary - yhatLR)^2)
+RMSElr <- sqrt(MSElr)
+#Build data frame for easy comparison
+df <- data.frame(Method = c("Linear Regression (All Features)", "PCR (16 Components)", "PLS (8 Components)"), RMSEValidation = c(RMSElr, RMSEpcr, RMSEpls))
+df
+```
+

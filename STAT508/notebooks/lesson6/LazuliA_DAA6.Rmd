@@ -1,0 +1,215 @@
+---
+title: "STAT508_DAA6"
+author: "Ada Lazuli"
+output: html_document
+date: "Thursday, Feb 26, 2026"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+
+```{r, warning=FALSE, message=FALSE}
+remove(list = ls()) 
+library(AmesHousing)
+library(tidyverse)
+library(ISLR2)
+library(pls)
+library(reactable) 
+library(glmnet)
+```
+
+## Code for Creating the Processed Dataset
+```{r}
+ames <- AmesHousing::make_ames()
+dim(ames)
+```
+
+## Problem 1 - Prepare the Dataset for Analysis
+#### Part a. - Subset to only include the numeric variables and remove observations with missing values
+
+```{r}
+ames2 <- ames %>% select(where(is.numeric))
+ames2 <- na.omit(ames2)
+dim(ames2)
+```
+
+#### Part b. - Perform a training/validation split
+
+```{r}
+set.seed(123)
+trainInd <- sample(1:nrow(ames2), floor(0.8 * nrow(ames2)), replace = FALSE)
+train <- ames2[trainInd,]
+validation <- ames2[-trainInd,]
+```
+
+
+## Problem 2 - Perform Principal Component Regression (PCR)
+#### Part a. - Fit a PCR model and display a summary of the results. Use 10-fold CV.
+
+```{r}
+set.seed(1)
+pcrFit <- pcr(Sale_Price ~ ., data = train, center = TRUE, scale = TRUE, validation = "CV", segments = 10) 
+```
+
+
+#### Part b. - Create a plot showing the cross validation RMSE values. How many components? 
+
+```{r}
+tempRMSE <- RMSEP(pcrFit)
+ggplotDF <- data.frame(Components = 0:(ncol(train)-1), 
+                       RMSE = tempRMSE$val[1, , ]) 
+optMpcr <- which.min(tempRMSE$val[1, , ]) 
+
+ggplot(data = ggplotDF, mapping = aes(x = Components, y = RMSE)) +
+  geom_line() +
+  geom_point() +
+  geom_point(data = ggplotDF[optMpcr,], color = "red", shape = 1, size = 4) +
+  scale_x_continuous(breaks = seq(0, ncol(train)-1, 2)) +
+  labs(x = "Number of Components",
+       y = "RMSE (from 10-fold CV)")
+```
+
+Based on the training cross fold valdation RSME, the optimal number of components is 31.
+
+
+#### Part c. - Based on the optimal number of principal components chosen in the Part b., what percent of the variance in Sale_Price is explained by the PCR model using the training data?
+
+```{r}
+summary(pcrFit)
+```
+
+Based on the summary, 80.15% of the variation in `sale_price` is explained by the first 31 components.
+
+#### Part d. - Compute the validation set mean squared error (MSE) and RMSE based on PCR with the optimal number of components.
+
+```{r}
+yhatPCR <- predict(pcrFit, newdata = validation, ncomp = 31)
+MSEpcr <- mean((validation$Sale_Price - yhatPCR)^2)
+RMSEpcr <- sqrt(MSEpcr)
+RMSEpcr
+```
+
+The RMSE score against the validation set is **`r format(round(RMSEpcr, digits = 2), scientific = FALSE)`** with the PCR model
+
+## Problem 3 - Perform Partial Least Squares Regression
+#### Part a. - Fit a PLS regression model and display a summary of the results. Use 10-fold CV.
+
+```{r}
+set.seed(1)
+plsFit <- plsr(Sale_Price ~ ., data = train,
+               center = TRUE, scale = TRUE,
+               validation = "CV", segments = 10)
+```
+
+#### Part b. - Create a plot showing the cross validation RMSE values. How many components?  
+
+```{r}
+tempRMSE <- RMSEP(plsFit)
+
+ggplotDF <- data.frame(Components = 0:(ncol(train)-1), 
+                       RMSE = tempRMSE$val[1, , ])
+
+optMpls <- which.min(tempRMSE$val[1, , ]) 
+ggplot(data = ggplotDF, mapping = aes(x = Components, y = RMSE)) +
+  geom_line() +
+  geom_point() +
+  geom_point(data = ggplotDF[optMpls,], color = "red", shape = 1, size = 4 ) +
+  scale_x_continuous(breaks = seq(0, ncol(train)-1, 2)) +
+  labs(x = "Number of Components",
+       y = "RMSE (from 10-fold CV)")
+```
+
+Based on the RMSE score over 10 cross fold validations on the training set, it appears that using 2 components is optimal for PLS.
+
+#### Part c. - Based on the optimal number of principal components chosen in the Part b., what percent of the variance in Sale_Price is explained by the PLS model using the training data?
+
+```{r}
+summary(plsFit)
+```
+
+Two components in the PLS model explain 77.94% of the variance in `Sale_Price`
+
+#### Part d. - Compute the validation set mean squared error (MSE) and RMSE based on PLS with the optimal number of components.
+
+```{r}
+yhatPLS <- predict(plsFit, newdata = validation, ncomp = 2)
+MSEpls <- mean((validation$Sale_Price - yhatPLS)^2)
+RMSEpls <- sqrt(MSEpls)
+RMSEpls
+```
+
+The RMSE score against the validation set is  **`r format(round(RMSEpls, digits = 2), scientific = FALSE)`**  with the PLS model
+
+## Problem 4 - Comparing Methods
+#### Part a. - Ordinary Least Square Linear Regression
+
+```{r}
+lrModel <- lm(Sale_Price ~ ., data = train)
+yhatLR <- predict(lrModel, newdata = validation)
+MSElr <- mean((validation$Sale_Price - yhatLR)^2)
+RMSElr <- sqrt(MSElr)
+RMSElr
+```
+
+#### Part b. - LASSO Regression
+
+```{r}
+# Create the matrices for LASSO and Ridge
+Xmat <- model.matrix(Sale_Price ~ ., data = ames2)[, -1]
+yvec <- ames2$Sale_Price
+
+set.seed(123)
+trainInd <- sample(1:nrow(ames2), floor(0.8*nrow(ames2)), replace = FALSE)
+set.seed(NULL)
+XmatTrain <- Xmat[trainInd,]
+XmatVal <- Xmat[-trainInd,]
+yvecTrain <- yvec[trainInd]
+yvecVal <- yvec[-trainInd]
+
+set.seed(1)
+lassoCV <- cv.glmnet(x = XmatTrain, y = yvecTrain,
+                    family = "gaussian",
+                    alpha = 1, 
+                    lambda = NULL,
+                    standardize = TRUE,
+                    nfolds = 10)
+lassoYhat <- predict(lassoCV, s = lassoCV$lambda.min, newx = XmatVal) 
+lassoMSE <-  mean((yvecVal - lassoYhat)^2)
+lassoRMSE <- sqrt(lassoMSE)
+lassoRMSE
+```
+
+#### Part c. - Ridge Regression
+
+```{r}
+set.seed(1)
+ridgeCV <- cv.glmnet(x = XmatTrain, y = yvecTrain,
+                    family = "gaussian",
+                    alpha = 0, 
+                    lambda = NULL,
+                    standardize = TRUE,
+                    nfolds = 10)
+ridgeYhat <- predict(ridgeCV, s = ridgeCV$lambda.min, newx = XmatVal) 
+ridgeMSE <-  mean((yvecVal - ridgeYhat)^2)
+ridgeRMSE <- sqrt(ridgeMSE)
+ridgeRMSE
+```
+
+#### Part d. - Which method worked the best? 
+
+```{r}
+performance_df <- data.frame(Method = c("Linear Regression (All Features)", "PCR (31 Components)", "PLS (2 Components)", "LASSO", "Ridge"),
+                             RMSEValidation = c(RMSElr, RMSEpcr, RMSEpls, lassoRMSE, ridgeRMSE))
+
+performance_df <- performance_df %>% arrange(RMSEValidation) %>% mutate(RMSEValidation = round(RMSEValidation, digits = 2))
+
+reactable(performance_df)
+```
+
+Based on the RMSE score against the validation set, it seems that Ridge regression performs the best against with held data it was not exposed to during training and 
+it would follow that the Ridge model would perform the best against new observations in production.
+
+

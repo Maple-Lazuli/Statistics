@@ -1,0 +1,504 @@
+---
+title: "U2L7 - Nonlinear Regression"
+output: html_document
+date: "Type date here"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+library(gridExtra)
+library(ISLR2)
+library(splines)
+library(mgcv)
+
+#Read in Boston Housing Data
+data(Boston)
+```
+
+## Example - Polynomial Regression in R
+#### Preliminary Plot
+```{r}
+#Create a plot showing the median value as a function of lower status percent. This is shown in the instructions.
+ggplot(data = Boston, mapping = aes(x = lstat, y = medv)) +
+  geom_point(alpha = 0.6) + 
+  labs(x = "Lower Status (%)",
+       y = "Median Value (in Thousands)")
+```
+
+#### Part a. - Find a degree 1 (linear) model for predicting medv using lstat. Then, display a summary of the results.
+```{r}
+#Fit Linear Model
+polyDeg1 <- lm(medv ~ lstat, data = Boston)
+
+#Display a summary
+summary(polyDeg1)
+```
+
+#### Part b. - Fit a degree 3 polynomial model for predicting medv
+There are 2 approaches for fitting a degree 3 polynomial regression model.
+
+1. You can create new variable in the dataset to represent the higher order terms. 
+2. You can use the `poly()` function. (For the sake of obtaining predictions on new data, this approach is easier.)
+
+Both approaches are shown below:
+
+```{r}
+#Approach 1: Create variables for the second and third degree terms in the dataset
+
+#Create new variable
+Boston <-
+  Boston %>%
+  mutate(lstat2 = lstat^2,
+         lstat3 = lstat^3)
+
+#Build degree 3 polynomial regression function
+polyDeg3 <- lm(medv ~ lstat + lstat2 + lstat3, 
+               data = Boston)
+
+#Display the summary
+summary(polyDeg3)
+```
+
+```{r}
+#Approach 2: Particularly for higher degree polynomials, creating the extra variables can be a nuisance. Instead, use the poly() function inside of lm()
+
+#Build degree 3 polynomial regression function
+polyDeg3v2 <- lm(medv ~ poly(x = lstat, degree = 3, raw = TRUE),
+                 data = Boston)
+
+#Display the summary
+summary(polyDeg3v2)
+
+#The summaries of polyDeg3 and polyDeg3v2 match which indicate the same results regardless of the approach.
+```
+
+
+#### Part c. - Create a plot showing the estimated cubic (degree 3 polynomial) function along with the ±2 standard deviation confidence intervals
+```{r}
+#Create a dataframe contain the variables in the model and the values of the variable at which we want predictions. I will obtain predictions from the min to the max, incrementing by 0.01
+predDF <- data.frame(lstat = seq(range(Boston$lstat)[1],
+                                    range(Boston$lstat)[2], 
+                                    0.01))
+
+#Obtain Predictions and standard errors (comes from se.fit = TRUE)
+Deg3Results <- predict(polyDeg3v2, 
+                       newdata = predDF, 
+                       se.fit = TRUE)
+
+#Calculate the Confidence intervals
+predDF <-
+  predDF %>%
+  mutate(yhat = Deg3Results$fit,
+         lb = Deg3Results$fit - 2 * Deg3Results$se.fit,
+         ub = Deg3Results$fit + 2 * Deg3Results$se.fit)
+
+#Create the plot
+ggplot(data = Boston, mapping = aes(x = lstat, y = medv)) +
+  geom_point(alpha = 0.6) + 
+  labs(x = "Lower Status (%)",
+       y = "Median Value (in Thousands)") +
+  geom_line(data = predDF, mapping = aes(x = lstat, y = yhat),
+            color = "red") +
+  geom_line(data = predDF, mapping = aes(x = lstat, y = ub),
+            color = "red", linetype = "dashed") +
+  geom_line(data = predDF, mapping = aes(x = lstat, y = lb),
+            color = "red", linetype = "dashed")
+```
+
+#### Part d. - Is this third degree polynomial a better than the linear fit? 
+
+There are many ways to approach this question. Since we have not performed a training/validation split, I will use an indirect estimate of the test error (AIC values) to compare the model. Remember that smaller values of AIC are preferred.
+
+```{r}
+#Get AIC for Linear Model
+AIC(polyDeg1)
+
+#Get AIC for Cubic Model
+AIC(polyDeg3)
+```
+
+## Example - Step Functions in R
+#### Use step function regression with 5 cutpoints to model medv based on lstat. Plot the results.
+```{r}
+#Create 5 evenly spaced cutpoints (which create 6 regions)
+cut(Boston$lstat, breaks = (5+1)) #breaks = number of regions = cutspoints + 1
+
+#Determine number of properties within each region
+table(cut(Boston$lstat, breaks = 6))
+
+#Build the Step function model (just a linear regression with indicators for the regions)
+step5 <- lm(medv ~ cut(lstat, 6), data = Boston)
+summary(step5)
+
+#Create a dataframe contain the variables in the model and the values of the variable at which we want predictions. I will obtain predictions from the min to the max, incrementing by 0.01
+predDF <- data.frame(lstat = seq(range(Boston$lstat)[1],
+                                 range(Boston$lstat)[2], 
+                                 0.01))
+
+#Obtain predictions and standard errors
+Step5Results <- predict(step5, 
+                        newdata = predDF, 
+                        se.fit = TRUE)
+
+#Calculate the intervals
+predDF <-
+  predDF %>%
+  mutate(yhat = Step5Results$fit,
+         lb = Step5Results$fit - 2 * Step5Results$se.fit,
+         ub = Step5Results$fit + 2 * Step5Results$se.fit)
+
+#Create the plot
+ggplot(data = Boston, mapping = aes(x = lstat, y = medv)) +
+  geom_point(alpha = 0.6) + 
+  labs(x = "Lower Status (%)",
+       y = "Median Value (in Thousands)") +
+  geom_line(data = predDF, mapping = aes(x = lstat, y = yhat),
+            color = "red") +
+  geom_line(data = predDF, mapping = aes(x = lstat, y = ub),
+            color = "red", linetype = "dashed") +
+  geom_line(data = predDF, mapping = aes(x = lstat, y = lb),
+            color = "red", linetype = "dashed")
+```
+
+## Example - Piecewise Cubic Polynomials
+```{r}
+#Determine the Knots (using 3 evenly spaced knots correponding to the 25th, 50th, and 75th percentiles)
+knots <- quantile(x = Boston$lstat, probs = c(0.25, 0.5, 0.75))
+
+#Cubic Polynomial Region 1
+CR1 <- lm(medv ~ poly(x = lstat, degree = 3, raw = TRUE), 
+          data = Boston[Boston$lstat <= knots[1],])
+
+#Cubic Polynomial Region 2
+CR2 <- lm(medv ~ poly(x = lstat, degree = 3, raw = TRUE), 
+          data = Boston[Boston$lstat > knots[1] & Boston$lstat <= knots[2],])
+
+#Cubic Polynomial Region 3
+CR3 <- lm(medv ~ poly(x = lstat, degree = 3, raw = TRUE), 
+          data = Boston[Boston$lstat > knots[2] & Boston$lstat <= knots[3],])
+
+#Cubic Polynomial Region 4
+CR4 <- lm(medv ~ poly(x = lstat, degree = 3, raw = TRUE), 
+          data = Boston[Boston$lstat > knots[3],])
+```
+
+```{r}
+#Create a function that determines which region the observation is in and uses the region to get the predicted value
+get_pred_PWcubic <- function(x, kts = knots){
+  if(x <= kts[1]){
+    yhat <- predict(CR1, newdata = data.frame(lstat = x))
+  } else {
+    if(x > kts[1] & x <= kts[2]){
+      yhat <- predict(CR2, newdata = data.frame(lstat = x))
+    } else {
+      if(x > kts[2] & x <= kts[3]){
+        yhat <- predict(CR3, newdata = data.frame(lstat = x))
+      } else {
+        yhat <- predict(CR4, newdata = data.frame(lstat = x))
+        }
+      }
+    }
+  return(yhat)
+}
+```
+
+```{r}
+#Create a dataframe contain the variables in the model and the values of the variable at which we want predictions. I will obtain predictions from the min to the max, incrementing by 0.01
+predDF <- data.frame(lstat = seq(range(Boston$lstat)[1],
+                                 range(Boston$lstat)[2], 
+                                 0.01))
+
+#Obtain Predictions
+predDF <-
+  predDF %>%
+  mutate(yhatPW = apply(predDF, 1, get_pred_PWcubic))
+```
+
+```{r}
+#Create Piecewise Cubic Plot
+mcPWCubDis <-
+  ggplot(data = Boston, mapping = aes(x = lstat, y = medv)) +
+  geom_point(alpha = 0.6) +
+  geom_vline(xintercept = knots, color = "blue", linetype = "dashed") + 
+  geom_line(data = predDF[predDF$lstat <= knots[1], ], 
+            mapping = aes(x = lstat, y = yhatPW), 
+            color = "red", 
+            linewidth = 1.5)  +
+  geom_line(data = predDF[predDF$lstat > knots[1] & predDF$lstat <= knots[2], ],
+            mapping = aes(x = lstat, y = yhatPW), 
+            color = "red", 
+            linewidth = 1.5) +
+  geom_line(data = predDF[predDF$lstat > knots[2] & predDF$lstat <= knots[3], ],
+            mapping = aes(x = lstat, y = yhatPW), 
+            color = "red", 
+            linewidth = 1.5)  +
+  geom_line(data = predDF[predDF$lstat > knots[3], ], 
+            mapping = aes(x = lstat, y = yhatPW), 
+            color = "red", 
+            linewidth = 1.5) +
+  labs(title = "Boston Housing Piecewise Cubic Polynomials (Disjoint)",
+       x = "Lower Status (%)",
+       y = "Median Value (in Thousands)")
+
+mcPWCubDis
+```
+
+
+## Example - Regression Splines in R
+#### Part a - Find the location of the knots
+```{r, eval = FALSE}
+#Determine the values of the knots
+knots <-
+  
+#Create a plot showing the location of the knots
+
+```
+
+#### Part b - How many DF for the cubic regression spline?
+
+#### Part c - Fit the cubic regression spline and display a summary
+```{r, eval = FALSE}
+#Fit the cubic spline model
+CubSplModel <- 
+
+#Display the summary
+summary(CubSplModel)
+```
+
+
+#### Part d. - Create a plot showing the predictions with an approximate 95% confidence interval
+```{r, eval = FALSE}
+#To visually depict the estimated model, start by generating a sequence of x (lstat) values for which we want to make predictions. 
+predDF <- 
+
+#Obtain the predictions and the standard errors
+#CubSplResults <- 
+
+#Calculate the intervals
+
+#Create the plot
+CubSpl <- 
+  ggplot(data = Boston, mapping = aes(x = lstat, y = medv)) +
+  geom_point(alpha = 0.6) +
+  geom_vline(xintercept = knots, color = "blue", 
+             linetype = "dashed") +
+  labs(x = "Lower Status (%)",
+       y = "Median Value (in Thousands)",
+       title = "Cubic Spline")
+ 
+```
+
+#### Part e - Fit the natural spline wite 4 DF
+```{r, eval = FALSE}
+#Fit the natural cubic spline model
+NCubSplModel <- 
+  
+#Display the summary
+summary(NCubSplModel)
+
+#Create a dataframe contain the variables in the model and the values of the variable at which we want predictions. I will obtain predictions from the min to the max, incrementing by 0.01
+predDF <- data.frame(lstat = seq(range(Boston$lstat)[1],
+                                 range(Boston$lstat)[2], 
+                                 0.01))
+
+#Obtain Predictions and Standard Errors
+NCubSplResults <- predict(NCubSplModel, 
+                          newdata = predDF, 
+                          se.fit = TRUE)
+
+#Calculate Intervals
+predDF <-
+  predDF %>%
+  mutate(yhat = NCubSplResults$fit,
+         lb = NCubSplResults$fit - 2 * NCubSplResults$se.fit,
+         ub = NCubSplResults$fit + 2 * NCubSplResults$se.fit)
+
+#Create Plot
+NCubSpl <-
+  ggplot(data = Boston, mapping = aes(x = lstat, y = medv)) +
+  geom_point(alpha = 0.6) + 
+  labs(x = "Lower Status (%)",
+       y = "Median Value (in Thousands)",
+       title = "Natural Cubic Spline") +
+  geom_line(data = predDF, 
+            mapping = aes(x = lstat, y = yhat),
+            color = "red") +
+  geom_line(data = predDF, 
+            mapping = aes(x = lstat, y = ub),
+            color = "red", 
+            linetype = "dashed") +
+  geom_line(data = predDF, 
+            mapping = aes(x = lstat, y = lb),
+            color = "red", 
+            linetype = "dashed") +
+  geom_vline(xintercept = knots, 
+             color = "blue", 
+             linetype = "dashed")
+
+NCubSpl
+```
+
+#### Part e. - How does the plot of the cubic regression spline compare to that of the natural cubic?
+```{r, eval = FALSE}
+#Create a plot showing the results side-by-side
+grid.arrange(CubSpl, NCubSpl, ncol = 2)
+```
+
+The big difference is that the natural spline adds extra constrains in which we try to force things to be more linear near the extremes. 
+
+The consequence is that there is less variability in bounds at the extreme
+
+## Example - Smoothing Splines in R
+#### Part a. - Fit the smoothing spline model with 2 effective DF, display a summary, and create a plot
+```{r, eval = FALSE}
+#Fit a smoothing splines model with 2 effective DF
+SSModel2 <- 
+  
+#Display a summary of the model
+
+
+#Create a dataframe contain the variables in the model and the values of the variable at which we want predictions. I will obtain predictions from the min to the max, incrementing by 0.01
+predDF <- data.frame(lstat = seq(range(Boston$lstat)[1],
+                                 range(Boston$lstat)[2], 
+                                 0.01))
+
+#Obtain Predictions
+
+#Create Plot
+#BosSS2 <-
+  
+
+
+```
+
+#### Part b. - Fit the smoothing splines model using LOOCV
+```{r, warning = TRUE}
+#Fit the smoothing splines model and pick lambda using LOOCV
+SSModelCV <- smooth.spline(x = Boston$lstat, y = Boston$medv, cv = TRUE) 
+
+#Display a summary of the model
+SSModelCV
+```
+
+
+#### Part c. - Fit the smoothing splines model using generalized cross validation and create the plot
+```{r}
+#Fit the smoothing splines model and pick lambda using GCV
+SSModelCV <- smooth.spline(x = Boston$lstat, y = Boston$medv, cv = FALSE) 
+
+#Display the summary
+SSModelCV
+
+#Create a dataframe contain the variables in the model and the values of the variable at which we want predictions. I will obtain predictions from the min to the max, incrementing by 0.01
+predDF <- data.frame(lstat = seq(range(Boston$lstat)[1],
+                                 range(Boston$lstat)[2], 
+                                 0.01))
+
+#Obtain Predictions
+predDF <- 
+  predDF %>%
+  mutate(yhatSS = as.numeric(unlist(predict(SSModelCV, x = predDF)[[2]])))
+
+#Plot Results
+BosSSCV <-
+  ggplot(data = Boston, mapping = aes(x = lstat, y = medv)) +
+  geom_point(alpha = 0.6) + 
+  labs(x = "Lower Status (%)",
+       y = "Median Value (in Thousands)",
+       title = "Smoothing Spline (GCV)") +
+  geom_line(data = predDF, 
+            mapping = aes(x = lstat, y = yhatSS),
+            color = "red")
+
+BosSSCV
+```
+
+#### Part c. - Compare Smoothing Splines
+```{r, eval = FALSE}
+grid.arrange(BosSS2, BosSSCV, ncol = 2)
+```
+
+
+## Example - Generalized Additive Model in R
+#### Part a. - GAM for predicting medv using a cubic spline with 5 DF for lstat, a smoothing spline with 5 effective DF for indus, and a simple linear model for chas. 
+```{r}
+#Convert chas to a factor
+Boston <- 
+  Boston %>%
+  mutate(chasFactor = as.factor(chas))
+
+#Build GAM
+GAMmodel1 <- gam(medv ~ s(lstat) + s(indus) + chasFactor,
+                 data = Boston)
+
+#Display a summary
+summary(GAMmodel1)
+```
+
+#### Part b. - Plot the contributions of each feature
+```{r, eval = FALSE}
+plot(GAMmodel1, all.terms = TRUE)
+```
+
+#### Part c. - Fit a multiple linear regression model for predicting medv using lstat, indus and chas 
+```{r}
+#Method 1: Fit a Linear Regression Model using lm()
+LinRegModel <- lm(medv ~ lstat + indus + chasFactor, data = Boston)
+summary(LinRegModel)
+
+#Method 2: Fit the Linear Regression Model using gam()
+GAMmodel2 <- gam(medv ~ lstat + indus + chasFactor, data = Boston)
+summary(GAMmodel2)
+```
+
+
+#### Part d. - Does the GAM model perform better than a multiple linear regression model?
+```{r}
+#GAM
+
+
+#MLR
+
+```
+
+
+
+
+## Example - Assessing Predictive Performance using Validation Set Approach
+#### Part a. - 80/20 training/validation split using a seed of 123
+```{r}
+set.seed(123)
+trainInd <- sample(1:nrow(Boston), floor(0.8*nrow(Boston)))
+set.seed(NULL)
+
+Train <- Boston[trainInd, ]
+Validation <- Boston[-trainInd, ]
+```
+
+#### Part b. - Build and compare 3 models
+```{r}
+#Cubic Spline Regression
+
+#Smoothing Spline
+
+
+#GAM (smooth for lstat and indus, linear for chas)
+
+
+#GAM (linear model of lstat, indus, and chasFactor)
+
+```
+
+
+
+
+

@@ -255,20 +255,32 @@ mcPWCubDis
 
 ## Example - Regression Splines in R
 #### Part a - Find the location of the knots
-```{r, eval = FALSE}
+```{r}
 #Determine the values of the knots
-knots <-
+knots <- quantile(x = Boston$lstat,
+                  probs = c(0.25, 0.5, 0.75))
   
 #Create a plot showing the location of the knots
-
+ggplot(data = Boston, mapping = aes(x = lstat, y = medv)) +
+  geom_point(alpha = 0.6)+
+  geom_vline(xintercept = knots, color = "blue", linetype="dashed") +
+  labs(x = "Lower Status (%)", 
+       y = "Median Value (in thousands)")
 ```
 
 #### Part b - How many DF for the cubic regression spline?
+For each cubic polynomial, there are 4 parameters (beta0, beta1, beta2, and beta3)
+
+Since we are fitting a cubic polynomial within each of the four regions, there are 4x4 = 16 total parameters that we must estimate
+
+At each knot, there are 3 constraints for a cubic polynomial. Since there are 3 knots, this reduces the number of free parameters by 3 * 3 = 9
+
+The total DF are 16 - 9 = 7
 
 #### Part c - Fit the cubic regression spline and display a summary
-```{r, eval = FALSE}
+```{r}
 #Fit the cubic spline model
-CubSplModel <- 
+CubSplModel <- lm(medv ~ bs(x = lstat, degree = 3, knots = knots), data = Boston)
 
 #Display the summary
 summary(CubSplModel)
@@ -276,14 +288,19 @@ summary(CubSplModel)
 
 
 #### Part d. - Create a plot showing the predictions with an approximate 95% confidence interval
-```{r, eval = FALSE}
+```{r}
 #To visually depict the estimated model, start by generating a sequence of x (lstat) values for which we want to make predictions. 
-predDF <- 
+predDF <- data.frame(lstat=seq(min(Boston$lstat), max(Boston$lstat), 0.01))
 
 #Obtain the predictions and the standard errors
-#CubSplResults <- 
+CubSplResults <- predict(CubSplModel, newdata = predDF, 
+                         se.fit = TRUE)
 
 #Calculate the intervals
+predDF <- predDF %>% mutate(yhat = CubSplResults$fit,
+                            lb=CubSplResults$fit - 2 * CubSplResults$se.fit,
+                            ub=CubSplResults$fit + 2 * CubSplResults$se.fit,
+                            )   #lb == lower bound
 
 #Create the plot
 CubSpl <- 
@@ -293,14 +310,19 @@ CubSpl <-
              linetype = "dashed") +
   labs(x = "Lower Status (%)",
        y = "Median Value (in Thousands)",
-       title = "Cubic Spline")
- 
+       title = "Cubic Spline")+
+  geom_line(data = predDF, mapping = aes(x = lstat, y = yhat), color = "red") +
+  geom_line(data = predDF, mapping = aes(x = lstat, y = lb), color = "red", linetype = "dashed") +
+  geom_line(data = predDF, mapping = aes(x = lstat, y = ub), color = "red", linetype = "dashed") 
+
+
+CubSpl
 ```
 
 #### Part e - Fit the natural spline wite 4 DF
-```{r, eval = FALSE}
+```{r}
 #Fit the natural cubic spline model
-NCubSplModel <- 
+NCubSplModel <- lm(medv ~ ns(x = lstat, df = 4), data = Boston)
   
 #Display the summary
 summary(NCubSplModel)
@@ -348,7 +370,7 @@ NCubSpl
 ```
 
 #### Part e. - How does the plot of the cubic regression spline compare to that of the natural cubic?
-```{r, eval = FALSE}
+```{r}
 #Create a plot showing the results side-by-side
 grid.arrange(CubSpl, NCubSpl, ncol = 2)
 ```
@@ -359,12 +381,12 @@ The consequence is that there is less variability in bounds at the extreme
 
 ## Example - Smoothing Splines in R
 #### Part a. - Fit the smoothing spline model with 2 effective DF, display a summary, and create a plot
-```{r, eval = FALSE}
+```{r}
 #Fit a smoothing splines model with 2 effective DF
-SSModel2 <- 
+SSModel2 <- smooth.spline(x = Boston$lstat, y = Boston$medv, df = 2)
   
 #Display a summary of the model
-
+SSModel2
 
 #Create a dataframe contain the variables in the model and the values of the variable at which we want predictions. I will obtain predictions from the min to the max, incrementing by 0.01
 predDF <- data.frame(lstat = seq(range(Boston$lstat)[1],
@@ -372,10 +394,17 @@ predDF <- data.frame(lstat = seq(range(Boston$lstat)[1],
                                  0.01))
 
 #Obtain Predictions
+predDF <- predDF %>% mutate(yhatSS =  as.numeric(unlist(predict(SSModel2, x = predDF)[[2]])))
 
 #Create Plot
-#BosSS2 <-
-  
+BosSS2 <- ggplot(data = Boston, mapping = aes(x = lstat, y = medv)) +
+  geom_point(alpha = 0.6) +
+  labs(x = "Lower Status (%)",
+       y = "Median Value (In Thousands)",
+       title = "Smoothing Spline (df = 2") +
+  geom_line(data = predDF, mapping = aes(x = lstat, y = yhatSS), color = "red")
+
+BosSS2
 
 
 ```
@@ -383,7 +412,7 @@ predDF <- data.frame(lstat = seq(range(Boston$lstat)[1],
 #### Part b. - Fit the smoothing splines model using LOOCV
 ```{r, warning = TRUE}
 #Fit the smoothing splines model and pick lambda using LOOCV
-SSModelCV <- smooth.spline(x = Boston$lstat, y = Boston$medv, cv = TRUE) 
+SSModelCV <- smooth.spline(x = Boston$lstat, y = Boston$medv, cv = TRUE) # CV = TRUE means to run leave one out cross validation
 
 #Display a summary of the model
 SSModelCV
@@ -393,7 +422,7 @@ SSModelCV
 #### Part c. - Fit the smoothing splines model using generalized cross validation and create the plot
 ```{r}
 #Fit the smoothing splines model and pick lambda using GCV
-SSModelCV <- smooth.spline(x = Boston$lstat, y = Boston$medv, cv = FALSE) 
+SSModelCV <- smooth.spline(x = Boston$lstat, y = Boston$medv, cv = FALSE) # Tell R to use GCV or generalized cross validation
 
 #Display the summary
 SSModelCV
@@ -423,7 +452,7 @@ BosSSCV
 ```
 
 #### Part c. - Compare Smoothing Splines
-```{r, eval = FALSE}
+```{r}
 grid.arrange(BosSS2, BosSSCV, ncol = 2)
 ```
 
@@ -445,7 +474,7 @@ summary(GAMmodel1)
 ```
 
 #### Part b. - Plot the contributions of each feature
-```{r, eval = FALSE}
+```{r}
 plot(GAMmodel1, all.terms = TRUE)
 ```
 
@@ -464,10 +493,10 @@ summary(GAMmodel2)
 #### Part d. - Does the GAM model perform better than a multiple linear regression model?
 ```{r}
 #GAM
-
+AIC(GAMmodel1)
 
 #MLR
-
+AIC(GAMmodel2)
 ```
 
 
@@ -487,15 +516,23 @@ Validation <- Boston[-trainInd, ]
 #### Part b. - Build and compare 3 models
 ```{r}
 #Cubic Spline Regression
+model1 <- lm(medv ~ bs(x = lstat, degree =3, knots = quantile(Train$lstat, probs = c(.25,.5,.75))), data = Train)
+model1Pred <- predict(model1, newdata = Validation)
 
+model1RMSE <- sqrt(mean((Validation$medv - model1Pred)^2))
 #Smoothing Spline
-
-
+model2 <- smooth.spline(x = Train$lstat, y = Train$medv, cv = FALSE) # use GCV
+model2Pred <- as.numeric(unlist(predict(model2, x = Validation$lstat)[[2]]))
+model2RMSE <- sqrt(mean((Validation$medv - model2Pred)^2))
 #GAM (smooth for lstat and indus, linear for chas)
-
-
+model3 <- gam(medv ~ s(lstat) + s(indus) + chasFactor, data = Train)
+model3Pred <- predict(model3, newdata = Validation)
+model3RMSE <- sqrt(mean((Validation$medv - model3Pred)^2))
 #GAM (linear model of lstat, indus, and chasFactor)
-
+model4 <- gam(medv ~ lstat + indus + chasFactor, data = Train)
+model4Pred <- predict(model4, newdata = Validation)
+model4RMSE <- sqrt(mean((Validation$medv - model4Pred)^2))
+# Regular linsar regression did the worst her.
 ```
 
 

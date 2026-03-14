@@ -1,0 +1,177 @@
+---
+title: "STAT508_DAA7"
+author: "Ada Lazuli"
+output: html_document
+date: "Tuesday, March 17, 2026"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r, warning=FALSE, message=FALSE}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+library(gridExtra)
+library(splines)
+library(mgcv)
+library(reactable) 
+
+#Read in Boston Housing Data
+biolum <- read.csv("../../sample_data/L07_Biolum.csv")
+```
+
+## Problem 1 - Initial Exploration
+#### Part a. - Create a scatterplot showing bioluminescence as a function of sample depth for the Season 2 data. Add a linear trend line to the plot. Comment on what you have learned from the plot. As part of this, be sure to address the research question.
+
+```{r}
+ggplot(biolum, aes(x = SampleDepth, y = Sources)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Bioluminescence Level versus Sample Depth",
+       x = "Sample Depth",
+       y = "Sources")
+```
+
+It appears that as the sample depth increases, the bioluminescence decreases. The scatter plot suggests that this function is nonlinear.
+
+#### Part b. - Create a scatterplot showing bioluminescence as a function of sample depth, and facet on season. Comment on what you have learned from the plot. As part of this, be sure to address the adjusted research question.
+
+```{r}
+ggplot(biolum, aes(x = SampleDepth, y = Sources)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Bioluminescence Level versus Sample Depth",
+       x = "Sample Depth",
+       y = "Sources") +
+  facet_wrap(~Season)
+```
+
+This facet wrap shows that the season definitely impacts the bio-luminescence level. 
+
+
+## Problem 2 - Polynomial Regression
+#### Part a. - Build a linear regression model for predicting bioluminescence using sample depth. Name the result model0 and display a summary of the model.
+
+```{r}
+model0 <- lm(Sources ~ SampleDepth, data = biolum)
+summary(model0)
+```
+
+#### Part b. - Fit a degree 3 polynomial regression model (i.e., a cubic regression model) for predicting bioluminescence using sample depth. Name the result model1 and display a summary of the model.
+
+```{r}
+model1 <- lm(Sources ~ SampleDepth + I(SampleDepth^2) + I(SampleDepth^3), data = biolum)
+summary(model1)
+```
+
+#### Part c. - Find the AIC for model0 and model1. (Be sure the AIC values are displayed in your Markdown document.) Which model is preferred based on the AIC values?
+
+```{r}
+AIC(model0)
+AIC(model1)
+```
+Based on the AIC values, `model1` is preferred due to the lower AIC value of 5484.989 compared to 5583.537.
+
+
+## Problem 3 - Regression Splines
+#### Part a. - Using 4 equally spaced knots placed at the 20th, 40th, 60th, and 80th percentiles of SampleDepth, fit a cubic regression spline. Name the result model2 and display a summary of the model. 
+
+```{r}
+knots <- quantile(x = biolum$SampleDepth,
+                  probs = c(0.2, .4, .6, .8))
+model2 <- lm(Sources ~ bs(x = SampleDepth, degree = 3, knots = knots), data = biolum)
+summary(model2)
+```
+#### Part b. - Find the AIC for model2. Based on AIC, would the cubic spline model be preferred to model0 or model1? Explain.
+
+
+
+```{r}
+AIC(model2)
+```
+
+Based on the AIC values, `model2` is preferred due the lower AIC value of 5387.892 compared to AIC values of 5583.537 and 5484.898 for models `model0` and `model1`.
+
+## Problem 4 - Generalized Additive Models
+#### Part a. - Fit a GAM for predicting bioluminescence using a smooth term for sample depth and a linear term for season. Since Season is an indicator, treat it as a factor. Name the result model3 and display a summary of the model. Comment on the effective degrees of freedom of the smooth terms.
+
+```{r}
+biolum <- biolum %>% mutate(SeasonFactor = as.factor(Season))
+model3 <- gam(Sources ~ s(SampleDepth) + SeasonFactor, data = biolum)
+summary(model3)
+```
+
+Based on the summary, the `SampleDepth` has 8.829 effect degress of freedom and implies the feature is 
+
+#### Part b. - Plot the contributions of each feature.
+
+```{r}
+plot(model3, all.terms = TRUE)
+```
+
+#### Part c. - Based on AIC values, is model3 preferred over the earlier models (models 0, 1, and 2)? Explain.
+
+```{r}
+AIC(model3)
+```
+
+Based on the AIC values, model3 has the lowest value of 5208.362 and is therefore assumed to be the best model, pending further analysis and validation set error evaluation.
+
+#### Part d. - Suppose that we wish to build upon the model constructed in Problem 4 Part a. that contains a smooth term for sample depth and a linear term for season by adding the relative depth variable to the model. Should you use a smooth term for relative depth, a linear term for relative depth, or should it not be included at all? Justify your choice based on the generalized cross validation error (GCV). 
+
+```{r}
+model3_smooth <- gam(Sources ~ s(SampleDepth) + s(RelativeDepth) + SeasonFactor, data = biolum, cv = FALSE)
+model3_linear <- gam(Sources ~ s(SampleDepth) + RelativeDepth + SeasonFactor, data = biolum, cv = FALSE)
+summary(model3_smooth)
+```
+
+```{r}
+summary(model3_linear)
+```
+
+The GCV score for the model with the smooth function wrapper for relative depth is 35.36 while the model with the linear function for relative depth has a GCV of 41.92.
+
+Based on the GCV scores, the model with the smooth function seems superior.
+
+## Problem 5  Estimating Test Set Error using GAMs
+#### Part a. - Using a seed of 123, perform an 80/20 training/validation split.
+
+```{r}
+set.seed(123)
+trainInd <- sample(1:nrow(biolum), floor(0.8*nrow(biolum)))
+set.seed(NULL)
+
+Train <- biolum[trainInd, ]
+Validation <- biolum[-trainInd, ]
+```
+
+
+#### Part b. - Calculate the validation set MSE using the GAM trained on smooth terms for sample depth and relative depth and a linear term for season.
+
+```{r}
+model3_smooth <- gam(Sources ~ s(SampleDepth) + s(RelativeDepth) + SeasonFactor, data = Train, cv = FALSE)
+model3_smooth_pred <- predict(model3_smooth, newdata = Validation)
+model3_smooth_MSE <- mean((Validation$Sources - model3_smooth_pred)^2)
+summary(model3_smooth)
+model3_linear <- gam(Sources ~ s(SampleDepth) + RelativeDepth + SeasonFactor, data = Train, cv = FALSE)
+model3_linear_pred <- predict(model3_linear, newdata = Validation)
+model3_linear_MSE <- mean((Validation$Sources - model3_linear_pred)^2)
+summary(model3_linear)
+```
+
+#### Part c. - How does this value compare to the GCV value for this model? Explain.
+
+```{r}
+df <- data.frame(Model = c("GAM Smooth Season", "GAM Linear Season"), GCV = c(35.301, 41.395), "MSE Validation" = c(round(model3_smooth_MSE, digits = 2), round(model3_linear_MSE, digits = 2)))
+reactable(df, searchable = FALSE, compact = TRUE, striped = TRUE, defaultPageSize = 5, showPageSizeOptions = FALSE)
+```
+
+The GAM model with the smooth function for the `RelativeDepth` feature has a GCV value of 35.301 and MSE value of 36.63. These values are lower than the GAM model 
+with the linear function for the `RelativeDepth` feature that has a GCV value of 41.395 and MSE of 44.53. 
+
+Based on the GCV and MSE against the validation set, tt appears that the GAM with the smooth function for `RelativeDepth` is superior. In hindsight, this makes sense as the effective degrees of freedom for that term is 8.546 and implies it is non-linear.

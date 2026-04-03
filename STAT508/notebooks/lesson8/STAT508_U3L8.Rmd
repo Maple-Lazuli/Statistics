@@ -1,0 +1,309 @@
+---
+title: "U3L8 - Linear Classification"
+output: html_document
+date: "Type date here"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(MASS) #For lda function (list before tidyverse so dplyr::select is not masked)
+library(tidyverse)
+library(gridExtra)
+library(palmerpenguins)
+library(caret) #For confusionMatrix() function
+library(pROC) #For ROC Curves
+
+
+#Read in Data
+titanic <- read.csv("../../sample_data/L08_titanic3.csv")
+```
+
+
+## Example - Logistic Regression in R using Titanic Data
+#### Part b - Predict Survived Using Age (This code produces an ERROR)
+```{r, error = TRUE}
+#Build Logistic Regression Model for Predicting Survived Using Age
+#model1 <- glm(Survived ~ Age, family = binomial, data = titanic)
+```
+
+
+#### Part c - Predict Survived Using Age (Solution 1) 
+```{r}
+#CAUTION: Be sure to use the data from Canvas not the built in Titanic dataset
+titanic <- titanic %>%
+  mutate(SurvivedNum = ifelse(Survived == "Yes",1,0))
+#Convert Survived to a 0/1 indicator
+model1 <- glm(SurvivedNum ~ Age, family = binomial, data = titanic)
+#Build Logistic Regression Model for Predicting SurvivedNum Using Age
+summary(model1)
+#Display a summary of the model
+
+```
+
+The estimated logit equation is given by:
+
+$$log(\frac{\hat{p}_i}{1-\hat{p}_i})=-0.2092 - 0.0088x_{i,age}$$
+
+The estimated probability form is given by:
+
+$$\hat{p}_i=\frac{e^{-0.2092 - 0.0088x_{i,age}}}{1+e^{-0.2092 - 0.0088x_{i,age}}}$$
+
+#### Part d - Predict Survived Using Age (Solution 2)
+```{r}
+#Build logistic regression using Survived as a factor
+model1Factor <- glm(as.factor(Survived) ~ Age, family = binomial, data = titanic)
+#Display a Summary of the Model
+summary(model1Factor)
+
+#What happens if Survived took values of "Did" and "Did Not"? Do answers change?
+#Create New Variable that takes values of "Did" and "Did Not"
+titanic <-
+  titanic %>% mutate(Survived2 = ifelse(Survived == "Yes", "Did", "Did Not"))
+
+#Build logistic regression model using alternative factor version of Survived
+model1Factor2 <- glm(as.factor(Survived2) ~ Age, family = binomial, data = titanic)
+
+#Display a Summary of the Model
+summary(model1Factor2)
+```
+
+#### Part e - Check the factor levels
+```{r}
+#Check Levels
+levels(as.factor(titanic$Survived))
+
+levels(as.factor(titanic$Survived2))
+```
+
+#### Part h - Obtain predictions for a person who is 35 years old
+```{r}
+#Prediction for the LOGIT of a person who is 35
+predict(model1, newdata = data.frame(Age=35))
+
+# For probability
+predict(model1, newdata = data.frame(Age=35), type="response")
+```
+
+#### Part i - Would you predict that a 35 year old survives or not?
+
+No, the would not.
+
+#### Part j - Obtain predictions for all people and the dataset; using a threshold of 0.38, predict whether each person survives or not
+```{r}
+predProb <- predict(model1, newdata = titanic, type = "response")
+
+threshold <- 0.38
+
+predSurv <- ifelse(predProb > threshold, "Yes", "No")
+```
+
+
+## Example - Assessing Predictive Performance of Titanic Model
+#### Part b - Create the confusion matrix
+```{r}
+#Create the confusion matrix
+table(predSurv, titanic$Survived)
+```
+
+#### Part d - Write code to find the accuracy 
+```{r}
+#Calculate the accuracy
+sum(predSurv == titanic$Survived) / nrow(titanic)
+mean(predSurv == titanic$Survived)
+```
+
+
+
+#### Part e - Write code to find the sensitivity
+```{r}
+#Find the number of true positives
+tp <- sum(predSurv == "Yes" & titanic$Survived == "Yes")
+tp
+#Find the number of false negatives
+fn <- sum(predSurv == "No" & titanic$Survived == "Yes")
+fn
+#Calculate the sensitivity
+sen <- tp/(tp + fn)
+sen
+```
+
+#### Part f - Use the confusionMatrix function from caret package (Incorrect Results)
+```{r}
+#Create confusion matrix using confusionMatrix function from caret library
+confusionMatrix(data = as.factor(predSurv),
+                reference = as.factor(titanic$Survived))
+```
+
+#### Part g - Use the confusionMatrix function from caret package (Corrected Results)
+```{r}
+#Create confusion matrix using confusionMatrix function from caret library
+confusionMatrix(data = as.factor(predSurv),
+                reference = as.factor(titanic$Survived),
+                positive =  "Yes")
+```
+
+#### Part h - Create the ROC curve and find the area under the curve. Comment on the effectiveness of our model for making predictions.
+```{r}
+#Use the roc function from the pROC package to create the ROC curve
+rocCurve <- roc(response = titanic$Survived,
+                predictor = predProb,
+                plot = TRUE,
+                print.auc = TRUE,
+                legacy.axes = TRUE)
+
+#Extract the AUC value
+as.numeric(rocCurve$auc)
+```
+
+The model is not doing a very good job.
+
+#### Part i - Perform backward elimination, create the ROC curve, and find AUC
+```{r}
+#Build Intercept Only Model. NOTE: ~ 1 tells R that you only want an intercept
+int_only_model <- glm(SurvivedNum ~ 1, 
+                      family = binomial,
+                      data = titanic)
+
+#Build model with all potential regressors. 
+#In code below, SurvivedNum ~ . tells R to use all columns in dataset to predict SurvivedNum
+#SurvivedNum ~ . -Survived -Survived2 tells R to use all columns except Survived and Survived2 to predict SurvivedNum. If you get an error saying that object Survived2 cannot be found, delete it from the code below. 
+full_model <- glm(SurvivedNum ~ . -Survived -Survived2, 
+                  family = binomial,
+                  data = titanic)
+
+#Perform backward elimination
+#Have R do it all
+stats::step(object = full_model, 
+            scope = list(lower = int_only_model, upper = full_model),
+            data = titanic,
+            direction = "backward")
+```
+
+```{r}
+#Build model determined by backward elimination
+bestModel <- glm(SurvivedNum ~ Pclass+Sex+Age+Siblings,
+                  family = binomial,
+                  data = titanic)
+
+#Obtain Predictions
+predProb <- predict(bestModel, newdata = titanic, type = "response")
+
+#Create ROC curve
+rocCurve2 = roc(response = titanic$Survived,
+               predictor = predProb, 
+               plot = TRUE, 
+               print.auc = TRUE, 
+               legacy.axes=TRUE)
+
+#Extract the AUC
+as.numeric(rocCurve2$auc)
+```
+
+
+## Example - Using LDA to Predict Species in R
+#### Part a - Create copy of the dataset in your Environment and remove observations with missing values in species, bill length, and bill depth
+```{r}
+#Create a copy of the dataset in the Environment
+data(penguins)
+
+#Omit observations with missing values of species, bill length/depth
+penguins <- na.omit(penguins %>% select(species, bill_length_mm, bill_depth_mm))
+```
+
+#### Part b - Check the normality assumption within each group
+```{r}
+#Distribution of Bill Length (all species together)
+BLall <-
+  ggplot(data = penguins, mapping = aes(x = bill_length_mm)) +
+  geom_density() +
+  labs(x = "Bill Length")
+
+#Distribution of Bill Depth (all species together)
+BDall <-
+  ggplot(data = penguins, mapping = aes(x = bill_depth_mm)) +
+  geom_density() +
+  labs(x = "Bill Depth")
+
+#Distribution of Bill Length (broken down by species)
+BLeach <-
+  ggplot(data = penguins, mapping = aes(x = bill_length_mm,
+                                        fill = species)) +
+  geom_density(alpha = 0.5) +
+  labs(x = "Bill Length") + 
+  theme(legend.position="bottom")
+
+#Distribution of Bill Depth (broken down by species)
+BDeach <-
+  ggplot(data = penguins, mapping = aes(x = bill_depth_mm,
+                                        fill = species)) +
+  geom_density(alpha = 0.5) +
+  labs(x = "Bill Depth") + 
+  theme(legend.position="bottom")
+
+grid.arrange(BDall, BLall, BLeach, BDeach, ncol = 2)
+```
+
+The first row of plots show that we're not following a normal distribution
+
+The second row shows that the individual distributions for each species is normal.
+
+There are no significant variables
+
+#### Part c - Prepare the dataset for LDA
+```{r}
+#Scale the numeric features
+xvars <- c("bill_length_mm", "bill_depth_mm")
+penguins[ , xvars] <- scale(penguins[ , xvars], 
+                            center = TRUE, 
+                            scale = TRUE)
+
+#Perform an 80/20 training/validation split using a seed of 123
+set.seed(123)
+trainInd <- sample(1:nrow(penguins), floor(0.8*nrow(penguins)))
+set.seed(NULL)
+
+Train <- penguins[trainInd, ]
+Validation <- penguins[-trainInd,]
+```
+
+#### Part d - Perform LDA on the Train
+```{r}
+#Build LDA model
+# comes from MASS
+ldaModel <- lda(species ~ bill_length_mm + bill_depth_mm, data = Train)
+ldaModel2 <- lda(Sex ~ Age + Fare, data = titanic)
+#Display a summary (NOTE: we are NOT using summary())
+ldaModel # This is how we get the summary
+```
+
+
+#### Part e - Generate and extract the posterior predicted probabilities and predicted classes for the Validation data.
+```{r}
+#Obtain Predictions for Validation Data
+preds <- predict(ldaModel, newdata = Validation)
+
+preds2 <- predict(ldaModel2, newdata = data.frame(Age = 35, Fare = 53.10))
+round(preds2$posterior, digits = 3)
+#preds is a list of 3. What elements are in preds?
+names(preds)
+#Extract predicted probabilities
+round(preds$posterior, digits = 3) # Generally do not display this
+#Extract predicted classes (assign each observation to class with highest probability)
+preds$class
+```
+
+#### Part f - Create the confusion matrix and calculate the accuracy
+```{r}
+#Create Confusion Matrix
+table(preds$class, Validation$species)
+#Calculate accuracy
+mean(preds$class == Validation$species)
+```

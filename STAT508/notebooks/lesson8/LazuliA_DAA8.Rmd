@@ -1,0 +1,190 @@
+---
+title: "STAT508_DAA8"
+author: "Ada Lazuli"
+output: html_document
+date: "Tuesday, March 31, 2026"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Front Matter
+
+```{r, warning = FALSE, error =FALSE, message = FALSE}
+remove(list = ls()) 
+
+library(MASS) 
+library(tidyverse)
+library(gridExtra)
+library(pROC) 
+
+fram <- read.csv("../../sample_data/L08_fram.csv")
+```
+
+## Problem 1
+#### Part a -	Is there missing data within the fram dataset? Write code to answer this.
+
+```{r}
+nrow(fram) - nrow(na.omit(fram))
+```
+
+It does not appear that there are missing data since there is no difference in the number of rows between the dataset and the dataset following a  `na.omit` call.
+
+#### Part b - Create a visualization showing the relationship between age and TenYearCHD. Explain why the resulting plot is not helpful for understanding the relationship between age and TenYearCHD.
+```{r, warning = FALSE, error =FALSE, message = FALSE}
+ggplot(data = fram, mapping = aes(x = TenYearCHD, y = age)) +
+  geom_boxplot()
+```
+
+This plot is not helpful since it does not capture the differences between the two classes of TenYearCHD.
+
+
+#### Part c - Create new dataset, convert the response to a factor, create plot, and comment on the nature of the relationship
+
+```{r}
+fram2 <- fram %>% mutate(TenYearCHDfac = ifelse(TenYearCHD == 1, "Yes", "No"))
+
+ggplot(data = fram2, mapping = aes(x = TenYearCHDfac, y = age, fill = TenYearCHDfac)) +
+  geom_boxplot(alpha = 0.5) + labs(title = "Boxplots Comparing Age vs 10 Year Coronary Heart Disease Risk",
+                                   y = "Age", x = "10 Year Coronary Heart Disease Risk")
+```
+
+This second plot shows of the people sampled, those with a 10 year risk of coronary heart disease tend have a higher age than those without. Of course, hypothesis testing 
+will need to be conducted to make draw conclusions about the larger population.
+
+#### Part d - Using a seed of 123, perform an 80/20 training/validation split. 
+
+```{r}
+set.seed(123)
+trainInd <- sample(1:nrow(fram), floor(0.8*nrow(fram)))
+set.seed(NULL)
+
+Train <- fram[trainInd, ]
+Validation <- fram[-trainInd,]
+```
+
+#### Part e - What proportion of the people in the training data have a 10-year risk of developing future coronary heart disease?
+
+
+```{r}
+sum(Train$TenYearCHD)/nrow(Train) * 100
+```
+
+In the training split, `r round(sum(Train$TenYearCHD)/nrow(Train) * 100, digits = 2)`% of the observations have a 10 year risk of coronary heart disease.
+
+## Problem 2 - Logistic Regression
+#### Part a - After controlling for sex and age, which variables should be included in the model? To answer this, use the Train dataset to perform feature selection using the forward selection method based on the AIC criterion.
+```{r}
+#Build the reduced model - since we are controlling and for age and sex, they should be included in the "smallest" model
+reduced_mod <- glm(TenYearCHD ~ male + age, 
+                   family = binomial, 
+                   data = Train) 
+
+#Build the full model
+full_mod <- glm(TenYearCHD ~ ., 
+            family = binomial,
+            data = Train)
+#In the full_mod code, TenYearCHD ~ . means that we include all variables in the dataset (other than TenYearCHD) as predictors (X's) Make sure that TenYearCHDfac is NOT included
+
+#Perform forward selection
+stats::step(reduced_mod, 
+            scope = list(lower=reduced_mod, upper=full_mod), 
+            data = Train, 
+            direction = 'forward')
+```
+
+The model with the lowest AIC is:
+
+```
+TenYearCHD ~ male + age + sysBP + cigsPerDay + glucose + prevalentStroke + totChol + prevalentHyp
+```
+
+
+#### Part b - Using the variables selected in Part a. (be sure to include sex and age), build the logistic regression model for modeling the probability that the patient will have a 10-year risk of future coronary heart disease (TenYearCHD) using the Train dataset. Name the result model1 and include a summary of the model in your R output.
+
+```{r}
+model1 <- glm(TenYearCHD ~ male + age + sysBP + cigsPerDay + glucose + prevalentStroke + totChol + prevalentHyp,
+                  family = binomial,
+                  data = Train)
+summary(model1)
+```
+
+#### Part c - Interpret the coefficient of prevalentHyp with respect to the odds of having a 10-year risk of future coronary heart disease.
+
+After holding the other variables constant, the odds of 10 year coronary heart disease increase by `r round(exp(0.306560), digits=2)` for each unit increase in `prevalentHyp`
+
+#### Part d - Write code to obtain the predicted probabilities for the people in the validation dataset. Then, using a threshold of 0.2, make a prediction as to whether each person has a 10 year risk of future coronary heart disease.
+
+```{r}
+predProb <- predict(model1, newdata = Validation, type = "response")
+
+threshold <- 0.2
+
+predCHD <- ifelse(predProb > threshold, 1, 0)
+
+head(data.frame(Probability = predProb, Prediction = predCHD), 10)
+```
+#### Part e - Explain why we might want to use a threshold that is lower than 0.5, such as 0.2, in this real-life situation.
+
+A lower threshold decreases the risk a False Negative, which is worse than a False Positive due to failing to properly assess the risk heart disease. A False Negative
+would lead to failing to taking risk mitigating action and could result in death.
+
+#### Part f - Based on a threshold of 0.2 and the predicted probabilities from Part d., create a confusion matrix for the validation data and report the following probabilities: the recall of the classifier, the precision of the classifier, the specificity of the classifier, the accuracy of the classifier.
+
+```{r}
+TP <- sum(predCHD == 1 & Validation$TenYearCHD == 1)
+TN <- sum(predCHD == 0 & Validation$TenYearCHD == 0)
+FN <- sum(predCHD == 0 & Validation$TenYearCHD == 1)
+FP <- sum(predCHD == 1 & Validation$TenYearCHD == 0)
+
+table(Validation$TenYearCHD, predCHD)
+```
+
+The performance metrics for the logistic regression are:
+
+1. **Recall**: `r round(TP/(TP + FN), digits = 3)`
+2. **Precision**: `r round(TP/(TP + FP), digits = 3)`
+3. **Specificity**:  `r round(TN/(TN + FP), digits = 3)`
+4. **Accuracy**: `r round(mean(predCHD == Validation$TenYearCHD), digits = 3)`
+
+#### Part g - Create the ROC curve for the validation data. Then, report the area under the curve (AUC).
+
+```{r, warning = FALSE, message= FALSE}
+rocCurve <- roc(response = Validation$TenYearCHD,
+                predictor = predProb,
+                plot = TRUE,
+                print.auc = TRUE,
+                legacy.axes = TRUE)
+
+as.numeric(rocCurve$auc)
+```
+
+The area under the curve for this model is: `r round(as.numeric(rocCurve$auc), digits = 4)`
+
+## Problem 3 - Linear Discriminant Analysis
+#### Part a - Using the continuous features, build an LDA model for predicting whether a person has a 10 year future risk of developing coronary heart disease. Name the result model2 and display a summary of the model. 
+
+```{r}
+model2 <- lda(TenYearCHD ~ age + cigsPerDay + totChol + sysBP + diaBP + BMI + heartRate + glucose, data = Train)
+model2
+```
+
+#### Part b - Obtain the predicted classes for the validation dataset and calculate the accuracy of the classifier.
+
+```{r}
+preds <- predict(model2, newdata = Validation)
+accuracy <- mean(preds$class == Validation$TenYearCHD)
+lda_FN <- sum(preds$class  == 0 & Validation$TenYearCHD == 1)
+round(accuracy, digits = 3)
+```
+
+#### Part c - Based on predictive accuracy of new data, which model (model1 with a threshold of 0.2 or model2) worked better? Explain your reasoning. 
+
+The accuracy of the logistic regression model against the validation set was `r round(mean(predCHD == Validation$TenYearCHD), digits = 3)` while the accuracy for the linear discriminant analysis model was `r round(accuracy, digits = 3)`
+
+Based solely on the accuracy, the linear discriminant model performed the best against new data and would be assumed to be more accurate in the field. 
+
+However, the LDA model had `r round((FN + lda_FN)/FN * 100, digits = 2)`% more instances of False Negatives against new data compared to the logistic regression model. In the interest of patient safety, the logistic regression might be the best model due to the context of this problem.
+

@@ -1,0 +1,511 @@
+---
+title: "Unit 2 Project"
+author: "Ada Lazuli"
+date: "Tuesday, March 24, 2026"
+output:
+  html_document:
+    highlight: tango
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code-tools: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r, warning=FALSE, message=FALSE}
+remove(list = ls()) 
+#Load libraries
+library(reactable)
+library(ggplot2)
+library(tidyverse)
+library(GGally) 
+library(patchwork) # used for combining plots: https://patchwork.data-imaginist.com/
+library(mgcv)
+library(glmnet)
+library(pls)
+library(leaps)
+#Read datasets into Environment
+cod_df <- read.csv("../../sample_data/STAT508_CODGamesP2.csv") %>% select(-Level)
+seed <- 42
+```
+
+## Task 1
+
+#### Analysis and Discussion of Method used for Calculating XP
+
+```{r}
+summary_stats <- cod_df %>% 
+  group_by(XPType) %>%
+  summarise(
+    n = n(),
+    min = min(TotalXP),
+    percentile25 = quantile(TotalXP, probs = c(.25)),
+    mean = round(mean(TotalXP), digits = 2),
+    median = median(TotalXP),
+    percentile75 = quantile(TotalXP, probs = .75),
+    max = max(TotalXP),
+    range = max(TotalXP) - min(TotalXP),
+    standard_deviation = round(sd(TotalXP), digits = 2)
+  )
+
+ggplot(cod_df, aes(x = TotalXP, y = XPType)) +
+  geom_boxplot() +
+  labs(title = "Comparing Scoring Method and XP Awarded",
+       y = "XP Type",
+       x = "Total XP")
+
+reactable(summary_stats)
+```
+
+The summary statistics and the boxplots show that Double has more variance and tends to award more XP than Regular. Additionally, there is a slight class imbalance
+with approximately `r 330 - 205` more observations of Double than Regular. Given that Double shows up more frequently than Regular, the model will use double as the 
+base case and depict regular as the difference from double.
+
+
+#### Analysis and Discussion of the Mode
+
+```{r}
+summary_stats <- cod_df %>% 
+  group_by(Mode) %>%
+  summarise(
+    n = n(),
+    min = min(TotalXP),
+    percentile25 = quantile(TotalXP, probs = c(.25)),
+    mean = round(mean(TotalXP), digits = 2),
+    median = median(TotalXP),
+    percentile75 = quantile(TotalXP, probs = .75),
+    max = max(TotalXP),
+    range = max(TotalXP) - min(TotalXP),
+    standard_deviation = round(sd(TotalXP), digits = 2)
+  )
+
+ggplot(cod_df, aes(x = TotalXP, y = Mode)) +
+  geom_boxplot() +
+  labs(title = "Comparing Game Type and XP Awarded",
+       y = "Game Type",
+       x = "Total XP")
+
+reactable(summary_stats)
+```
+
+The summary statistics and boxplots show that Core games are more frequent and and have less variation compared to Hard Core games. However the boxplots show that
+the interquartile range for the modes overlap and hypothesis testing might show fail to show evidence of a difference in terms of total experience awarded. The class imbalance between
+Core and HardCore is less prominent with only `r 300- 235` more Core observations than HardCore. Since Core has more representation, the model will use Core as the baseline and
+represent HardCore as a deviation from that.
+
+## Task 2
+
+### Part 1
+
+Based on the preliminary analysis, XPType and Mode will be explored for use in the models. However, feature selection techniques will be utilized and Mode might be dropped.
+
+```{r, message=FALSE, warning = FALSE}
+sp1 <- ggplot(cod_df, aes(x = TotalXP, y = PlayerTeamScore)) + geom_point() +coord_cartesian(ylim = c(0, 270))
+sp2 <- ggplot(cod_df, aes(x = TotalXP, y = OpponentTeamScore)) + geom_point() +coord_cartesian(ylim = c(0, 270))
+sp3 <- ggplot(cod_df, aes(x = TotalXP, y = Eliminations)) + geom_point() + geom_smooth(method = "lm", se = FALSE) 
+sp4 <- ggplot(cod_df, aes(x = TotalXP, y = Deaths)) + geom_point() + geom_smooth(method = "lm", se = FALSE) 
+sp5 <- ggplot(cod_df, aes(x = TotalXP, y = Score)) + geom_point() + geom_smooth(method = "lm", se = FALSE) 
+sp6 <- ggplot(cod_df, aes(x = TotalXP, y = Damage)) + geom_point() + geom_smooth(method = "lm", se = FALSE) 
+(sp1 + sp2)/(sp3 + sp4)/(sp5 + sp6) 
+```
+
+Based on the scatter plots, it appears that the totalXP varies by the different quantitative variables, with most showing a positive correlation. However, there is strange
+divergence observed in the player and opponent team score features.
+
+```{r, warning=FALSE, message = FALSE}
+sp1 <- ggplot(cod_df, aes(x = TotalXP, y = PlayerTeamScore)) + geom_point() + facet_wrap(Game ~ . )  +
+  geom_smooth(method = "lm", se = FALSE) + coord_cartesian(ylim = c(0, 270))
+sp2 <- ggplot(cod_df, aes(x = TotalXP, y = OpponentTeamScore)) + geom_point() + facet_wrap(Game ~ . ) +
+  geom_smooth(method = "lm", se = FALSE) +coord_cartesian(ylim = c(0, 270))
+sp1 + sp2 
+```
+
+The divergence observed in the scatterplots for PlayerTeamScore and OpponentTeamScore is influenced by the Game due to match termination scoring thresholds.
+
+```{r}
+ggplot(cod_df, aes(x = TotalXP, y = Damage)) + geom_point() + geom_smooth(method = "lm", se = FALSE) + facet_wrap(Mode ~ . )
+```
+
+The scatterplot shows that the relationship between totalXP and Damage is influenced by the mode. This makes sense in hindsight due to the how health is managed 
+in the different Modes according to the data description. Lastly, the full partial feature will be included left for evalution with the feature selection and dimension reduction
+methods.
+
+In short, the following variables will be used:
+
+1. PlayerTeamScore
+2. OpponentTeamScore
+3. Eliminations
+4. Deaths
+5. Score
+6. Damage
+7. Mode
+8. XPType
+9. Game
+10. FullPartial
+
+
+### Part 2
+
+```{r}
+set.seed(seed)
+trainInd <- sample(1:nrow(cod_df), floor(0.8*nrow(cod_df)), replace = FALSE)
+# For linear regression
+train <- cod_df[trainInd, ]
+validation <- cod_df[ -trainInd,]
+# For lasso with cv.glmnet
+Xmat <- model.matrix(TotalXP ~ ., data = cod_df)[, -1]
+yvec <- cod_df$TotalXP
+XmatTrain <- Xmat[trainInd,]
+XmatVal <- Xmat[-trainInd,]
+yvecTrain <- yvec[trainInd]
+yvecVal <- yvec[-trainInd]
+```
+
+After exploring the features available for regression, the next phase is to divide the data into train and validation sets to assess how well the developed models
+perform against unseen data.
+
+To do this, a seed of `r seed` was used randomly to divide 80% of the data into the model training set and the remaining 20% of the validation set. 
+
+This left the training set consisting of exactly `r nrow(train)` observations while the validation set had the remaining `r nrow(validation)`
+
+Next, three models will be developed using feature selection and dimension reduction techniques since limited exploration and multivariate analysis was conducted
+during the EDA phase.
+
+#### Model1 Analysis and Discussion
+
+The first model will be a linear regression. However, since it is unknown which selection of features will yield the best results, the best subsets approach will be used
+to decide on the best linear regression model.
+
+```{r}
+regfitBSval <- regsubsets(TotalXP ~ ., nvmax = 12, data = train)
+summary(regfitBSval)
+validationMat <- model.matrix(TotalXP ~ ., data = validation)
+trainMat <- model.matrix(TotalXP ~ ., data = train)
+
+numModels <- ncol(validationMat) - 1
+valMSE <- rep(NA, numModels) 
+trainMSE <- rep(NA, numModels) 
+
+for (i in 1:numModels){
+  coefi <- coef(regfitBSval, id = i) 
+  yhat <- validationMat[, names(coefi)] %*% coefi 
+  valMSE[i] <- mean((validation$TotalXP - yhat)^2)
+  yhat <- trainMat[, names(coefi)] %*% coefi 
+  trainMSE[i] <- mean((train$TotalXP - yhat)^2)
+}
+optSizeVal <- which.min(valMSE)
+MSEdf <- data.frame(Model = 1:numModels,
+                       validation = valMSE,
+                       train = trainMSE) %>%
+  pivot_longer(
+    cols = c(validation, train),
+    names_to = "Split",
+    values_to =  "MSE"
+  )
+```
+
+```{r}
+ggplot(data = MSEdf, mapping = aes(x = Model, y = MSE, color = Split)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = c(1: 12)) + 
+  labs(x = "Number of Features in the Model",
+       y = "MSE") +
+  geom_point(data = MSEdf[optSizeVal+1,] , color = "red", size = 3)
+```
+
+A total of 12 models were created and evaluated using the best subsets approach. Based on the validation set Mean Squared Error (MSE) scores, it appears that a linear regression with 
+XPType and Eliminations performs the best against new data. Having all of features yields the lowest training MSE but leads to higher validation MSE compared to
+simpler models.
+
+```{r}
+model1 <- lm(TotalXP ~ Eliminations + XPType, data = train)
+summary(model1)
+model1_summary <- summary(model1)
+model1_Pred <- predict(model1, newdata = validation)
+model1_RMSE <- sqrt(mean((validation$TotalXP - model1_Pred)^2))
+model1_MAE <- mean(abs(validation$TotalXP - model1_Pred))
+```
+
+The best model built using the best subsets approach has an adjusted $r^2$of 61.82%
+
+#### Model2 Analysis and Discussion
+
+```{r}
+set.seed(seed)
+lassoCV <- cv.glmnet(x = XmatTrain, y = yvecTrain,
+                    family = "gaussian",
+                    alpha = 1, 
+                    lambda = NULL,
+                    standardize = TRUE,
+                    nfolds = 10)
+
+```
+
+The second model was also developed using feature selection through LASSO. The $\lambda$ tuning parameter was chosen using the best 1 standard error approach
+after 10 crossfold validations (CV) with the standardized training set and a randomization seed of `r seed`.
+
+Based on the validation scores, a $\lambda$ of `r round(lassoCV$lambda.1se, digits=2)` was found to be optimal. Note that all validation here was conducted with a split on the 
+training set, not the larger validation set created previously. 
+
+```{r}
+coefLam1se <- predict(lassoCV, s = lassoCV$lambda.1se, type = "coefficients")
+tempdf <- data.frame(Variable = row.names(coefLam1se), lam1se = as.numeric(coefLam1se))
+reactable(tempdf, searchable = FALSE, compact = TRUE, striped = TRUE, defaultPageSize = 13, showPageSizeOptions = FALSE)
+```
+
+The LASSO model pushed the coefficients of the following variables to zero, effectively removing them from the model:
+
+1. FullPartialPartial
+2. OpponentTeamScore
+3. Deaths
+4. Mode(Core, Hardcore)
+5. Game(Hardpoint, TDM, Kill Confirmed, Domination)
+
+```{r}
+lassoYhat <- predict(lassoCV, s = lassoCV$lambda.1se, newx = XmatVal) 
+lassoRMSE <-  sqrt(mean((yvecVal - lassoYhat)^2))
+lassoMAE <-  mean(abs(yvecVal - lassoYhat))
+```
+
+#### Model3 Analysis and Discussion
+
+The third model is different in that it uses partial least squares (PLS) as a dimension reduction as opposed to the feature selection techniques used previously.
+
+```{r}
+set.seed(seed)
+plsFit <- plsr(TotalXP  ~ PlayerTeamScore + OpponentTeamScore + Eliminations + Deaths + Score + Damage + Mode + XPType + Game, data = train,
+               center = TRUE, scale = TRUE,
+               validation = "CV", segments = 10) # segmentation = folds
+summary(plsFit)
+```
+
+The optimal number of components is 4, based on the CV score of 3845 over 10 folds with a randomization seed of `r seed` against the centered and scaled training set. Additionally, the model captures 74.74% of the variation in the training data and explains 65.70% of the variation in totalXP with 4 components. Note that the validation here still refers to the training set and not the separate validation set created previously. The validation set is only used for final model selection to minimize experimenter tuning bias.
+
+```{r}
+yhatPLS <- predict(plsFit, newdata = validation, ncomp = 4)
+RMSEpls <- sqrt(mean((validation$TotalXP - yhatPLS)^2))
+MAEpls <- mean(abs(validation$TotalXP - yhatPLS))
+```
+
+### Part 3
+
+```{r}
+performance_df <- data.frame("Model" = c("Best Subset", "LASSO", "PLS"),
+                             'Validation RMSE' = c(model1_RMSE, lassoRMSE, RMSEpls),
+                             'Validation MAE' = c(model1_MAE, lassoMAE, MAEpls)) %>%
+                        mutate(Validation.RMSE = round(Validation.RMSE, digits = 2)) %>%
+                        mutate(Validation.MAE = round(Validation.MAE, digits = 2)) %>%
+                        arrange(Validation.RMSE)
+reactable(performance_df)
+```
+
+Based on the performance against the validation set, it appears that the model created using the best subsets approach performs the best against new data as
+evidenced by the lower Root Mean Squared Error (RMSE) and Mean Absolute Error (MAE). This implies that the best subset model should yield the lowest error,
+or best performance, against new observations compared to the PLS and LASSO models.
+
+## Task 3
+
+Next, further regression will be done using generalized additive models (GAM). To start, a large GAM will be created to observe the effective degrees of freedom to determine
+whether the feature should be smoothed or left as a linear function. Additionally, subsequent models will be created in an attempt to reduce excess features.
+
+```{r}
+set.seed(seed)
+GAMmodel1 <- gam(TotalXP  ~ s(PlayerTeamScore) + s(OpponentTeamScore) + s(Eliminations) + s(Deaths) + s(Score) + s(Damage) + Mode + XPType + Game,
+                 data = cod_df)
+summary(GAMmodel1)
+```
+
+Based on the model summary, it appears that the mode feature should be removed due to the t test statistic. This is reasonable due to the overlapping IQR between
+Core and HardCore observed previously.
+
+```{r}
+set.seed(seed)
+GAMmodel2 <- gam(TotalXP  ~ s(PlayerTeamScore) + s(OpponentTeamScore) + s(Eliminations) + s(Deaths) + s(Score) + s(Damage)  + XPType + Game,
+                 data = cod_df)
+summary(GAMmodel2)
+```
+
+Next, appears that the Game feature should be removed based on the t test statistic. This is also reasonable due to the significant 
+class imbalances in the observed game modes, as seen here:
+
+```{r}
+table(cod_df$Game)
+```
+
+```{r}
+set.seed(seed)
+GAMmodel3 <- gam(TotalXP  ~ s(PlayerTeamScore) + s(OpponentTeamScore) + s(Eliminations) + s(Deaths) + s(Score) + s(Damage)  + XPType,
+                 data = cod_df)
+summary(GAMmodel3)
+```
+
+Based on the t test statistic, the smoothed opponentteamscore feature should be removed.
+
+
+```{r}
+set.seed(seed)
+GAMmodel4 <- gam(TotalXP  ~ s(PlayerTeamScore) + s(Eliminations) + s(Deaths) + s(Score) + s(Damage)  + XPType,
+                 data = cod_df)
+summary(GAMmodel4)
+```
+
+Next, it appears that the smoothed deaths should be removed based on the t test statistic
+
+```{r}
+set.seed(seed)
+GAMmodel5 <- gam(TotalXP  ~ s(PlayerTeamScore) + s(Eliminations) + s(Score) + s(Damage)  + XPType,
+                 data = cod_df)
+summary(GAMmodel5)
+```
+
+Next, due to the perfect 1 effective degree of freedom, it appears that the PlayerTeamScore should be left as a linear function and not wrapping in a smoothing function.2 
+
+```{r}
+set.seed(seed)
+GAMmodel6 <- gam(TotalXP  ~ PlayerTeamScore  + s(Eliminations) + s(Score) + s(Damage) + XPType,
+                 data = cod_df)
+summary(GAMmodel6)
+```
+
+Lastly, since the linear model created under task 2 is a simplified version of a GAM, it would interesting to observe how a GAM with smoothed eliminations and XPType performs.
+
+```{r}
+set.seed(seed)
+GAMmodel7 <- gam(TotalXP  ~ s(Eliminations) +  XPType,
+                 data = cod_df)
+summary(GAMmodel7)
+```
+
+#### GAM Selection and Analysis
+
+Now, the 7 GAM models created previously will be trained on the training data set then evaluated against the validation data set to assess performance against new observations.
+
+```{r}
+set.seed(seed)
+GAMmodel1 <- gam(TotalXP  ~ s(PlayerTeamScore) + s(OpponentTeamScore) + s(Eliminations) + s(Deaths) + s(Score) + s(Damage) + Mode + XPType + Game,
+                 data = train)
+GAMmodel1_summary <- summary(GAMmodel1)
+
+set.seed(seed)
+GAMmodel2 <- gam(TotalXP  ~ s(PlayerTeamScore) + s(OpponentTeamScore) + s(Eliminations) + s(Deaths) + s(Score) + s(Damage)  + XPType + Game,
+                 data = train)
+GAMmodel2_summary <- summary(GAMmodel2)
+
+set.seed(seed)
+GAMmodel3 <- gam(TotalXP  ~ s(PlayerTeamScore) + s(OpponentTeamScore) + s(Eliminations) + s(Deaths) + s(Score) + s(Damage)  + XPType,
+                 data = train)
+GAMmodel3_summary <- summary(GAMmodel3)
+
+set.seed(seed)
+GAMmodel4 <- gam(TotalXP  ~ s(PlayerTeamScore) + s(Eliminations) + s(Deaths) + s(Score) + s(Damage)  + XPType,
+                 data = train)
+GAMmodel4_summary <- summary(GAMmodel4)
+
+set.seed(seed)
+GAMmodel5 <- gam(TotalXP  ~ s(PlayerTeamScore) + s(Eliminations) + s(Score) + s(Damage)  + XPType,
+                 data = train)
+GAMmodel5_summary <- summary(GAMmodel5)
+
+set.seed(seed)
+GAMmodel6 <- gam(TotalXP  ~ PlayerTeamScore  + s(Eliminations) + s(Score) + s(Damage) + XPType,
+                 data = train)
+GAMmodel6_summary <- summary(GAMmodel6)
+
+set.seed(seed)
+GAMmodel7 <- gam(TotalXP  ~ s(Eliminations) +  XPType,
+                 data = train)
+GAMmodel7_summary <- summary(GAMmodel7)
+
+
+GAMmodel1_Pred <- predict(GAMmodel1, newdata = validation)
+GAMmodel1_RMSE <- sqrt(mean((validation$TotalXP - GAMmodel1_Pred)^2))
+GAMmodel1_MAE <- mean(abs(validation$TotalXP - GAMmodel1_Pred))
+
+
+GAMmodel2_Pred <- predict(GAMmodel2, newdata = validation)
+GAMmodel2_RMSE <- sqrt(mean((validation$TotalXP - GAMmodel2_Pred)^2))
+GAMmodel2_MAE <- mean(abs(validation$TotalXP - GAMmodel2_Pred))
+
+GAMmodel3_Pred <- predict(GAMmodel3, newdata = validation)
+GAMmodel3_RMSE <- sqrt(mean((validation$TotalXP - GAMmodel3_Pred)^2))
+GAMmodel3_MAE <- mean(abs(validation$TotalXP - GAMmodel3_Pred))
+
+GAMmodel4_Pred <- predict(GAMmodel4, newdata = validation)
+GAMmodel4_RMSE <- sqrt(mean((validation$TotalXP - GAMmodel4_Pred)^2))
+GAMmodel4_MAE <- mean(abs(validation$TotalXP - GAMmodel4_Pred))
+
+GAMmodel5_Pred <- predict(GAMmodel5, newdata = validation)
+GAMmodel5_RMSE <- sqrt(mean((validation$TotalXP - GAMmodel5_Pred)^2))
+GAMmodel5_MAE <- mean(abs(validation$TotalXP - GAMmodel5_Pred))
+
+GAMmodel6_Pred <- predict(GAMmodel6, newdata = validation)
+GAMmodel6_RMSE <- sqrt(mean((validation$TotalXP - GAMmodel6_Pred)^2))
+GAMmodel6_MAE <- mean(abs(validation$TotalXP - GAMmodel6_Pred))
+
+GAMmodel7_Pred <- predict(GAMmodel7, newdata = validation)
+GAMmodel7_RMSE <- sqrt(mean((validation$TotalXP - GAMmodel7_Pred)^2))
+GAMmodel7_MAE <- mean(abs(validation$TotalXP - GAMmodel7_Pred))
+
+gam_results <- data.frame(Model = c('GAM 1', 'GAM 2', 'GAM 3', 'GAM 4', 'GAM 5', 'GAM 6', 'GAM 7'),
+                        'Validation RMSE' = c(GAMmodel1_RMSE, GAMmodel2_RMSE, GAMmodel3_RMSE, GAMmodel4_RMSE, GAMmodel5_RMSE, GAMmodel6_RMSE, GAMmodel7_RMSE), 
+                        'Validation MAE' = c(GAMmodel1_MAE, GAMmodel2_MAE, GAMmodel3_MAE, GAMmodel4_MAE, GAMmodel5_MAE, GAMmodel6_MAE, GAMmodel7_MAE), 
+                        "R.Sq" = c(GAMmodel1_summary$r.sq, GAMmodel2_summary$r.sq, GAMmodel3_summary$r.sq, GAMmodel4_summary$r.sq, GAMmodel5_summary$r.sq, GAMmodel6_summary$r.sq, GAMmodel7_summary$r.sq), 
+                        BIC = c(BIC(GAMmodel1), BIC(GAMmodel2),BIC(GAMmodel3),BIC(GAMmodel4),BIC(GAMmodel5),BIC(GAMmodel6),BIC(GAMmodel7))) %>% 
+  
+                        mutate(Validation.RMSE = round(Validation.RMSE, digits = 2)) %>%
+                        mutate(Validation.MAE = round(Validation.MAE, digits = 2)) %>%
+                        mutate(R.Sq = round(R.Sq*100, digits = 2)) %>%
+                        mutate(BIC = round(BIC, digits = 2)) %>%
+                        arrange(Validation.RMSE)
+  
+reactable(gam_results)
+```
+
+Based on performance against the validation set, it seems that GAM4 and GAM6 are the best. Both are able to explain approximately 67% of the variation in TotalXP, have similiar Bayesian Information Criterion (BIC) scores,
+RMSE scores, and MAE scores. However, despite the slightly higher RMSE, GAM6 has a slightly better MAE and BIC, along with being less complicated.
+
+As a result, GAM6 appears to be the best choice of all 7 GAMs created.
+
+#### Analysis, Discussion, and Comparison of Results
+
+The apparent best model from task 2 was the model developed through the best subsets approach. Moreover, the best model from Task 3 was GAM 6.
+
+```{r}
+performance_df <- data.frame("Model" = c("Best Subset", "GAM"),
+                             'Validation RMSE' = c(model1_RMSE, GAMmodel6_RMSE),
+                             'Validation MAE' = c(model1_MAE, GAMmodel6_MAE),
+                             "R.Sq" = c(model1_summary$adj.r.squared, GAMmodel6_summary$r.sq),
+                             BIC = c(BIC(model1), BIC(GAMmodel6)))%>%
+                        mutate(Validation.RMSE = round(Validation.RMSE, digits = 2)) %>%
+                        mutate(Validation.MAE = round(Validation.MAE, digits = 2)) %>%
+                        mutate(R.Sq = round(R.Sq*100, digits = 2)) %>%
+                        mutate(BIC = round(BIC, digits = 2)) %>%
+                        arrange(Validation.RMSE)
+reactable(performance_df)
+```
+
+Of the two remaining models, the GAM performs the best against new data, as determined through the RMSE and MAE scores against the validation set. Additionally, the GAM can explain `r 67.38 - 61.82` % more of the variation in TotalXP.
+
+The only saving grace for the best subsets model is that it is significantly simpler and has a slightly better BIC score. 
+
+In summary, for optimal predictive performance, the GAM is the best model model. 
+
+However, if a player needs a quick napkin math estimate of the XP that will be awarded, the following equations derived from the best subset model will provide a rough estimate:
+
+
+\begin{aligned}
+
+&\textbf{For a Double XP Match:} \\
+
+&\quad Total\ XP = 445.95 \times (Num\ Eliminations) + 9875.71 \\
+\\
+&\textbf{For a Regular XP Match:} \\
+
+&\quad Total \ XP = 445.95 \times (Num\ Eliminations) + 2560.03 \\
+
+\end{aligned}

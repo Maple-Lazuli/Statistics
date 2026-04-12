@@ -291,10 +291,10 @@ ldaModel # This is how we get the summary
 preds <- predict(ldaModel, newdata = Validation)
 
 preds2 <- predict(ldaModel2, newdata = data.frame(Age = 35, Fare = 53.10))
+
 round(preds2$posterior, digits = 3)
 #preds is a list of 3. What elements are in preds?
-names(preds)
-#Extract predicted probabilities
+names(preds)#Extract predicted probabilities
 round(preds$posterior, digits = 3) # Generally do not display this
 #Extract predicted classes (assign each observation to class with highest probability)
 preds$class

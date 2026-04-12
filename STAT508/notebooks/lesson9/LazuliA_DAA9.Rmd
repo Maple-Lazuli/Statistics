@@ -1,0 +1,298 @@
+---
+title: "STAT508_DAA9"
+author: "Ada Lazuli"
+output: html_document
+date: "April 5th, 2026"
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+remove(list = ls()) 
+library(tidyverse)
+library(NHANES)
+library(FNN)
+library(rpart)
+library(dplyr)
+library(rattle)
+```
+
+
+## Preliminary Code to Subset the Dataset
+```{r}
+#This code requires the NHANES package to be loaded (add it to your Front Matter)
+df <- NHANES[ , -c(1,2,5, 6, 7, 8, 11, 12, 16, 18, 19, 22, 23, 27:39, 41, 43:45, 47:51, 53:76)] 
+```
+
+
+## Problem 1 - Initial Exploration and Preliminaries
+#### Part a. -	Create an appropriate plot for showing the distribution of the levels in the HealthGen variable. Support the plot by also reporting the number of times each level is found in df.
+
+```{r}
+ggplot(df, aes(x = HealthGen)) + geom_bar() + labs(y = "Frequency", x = "Health Status")
+```
+
+The data has the following occurrences for each self reported health status:
+
+1. Excellent: `r sum(na.omit(df)$HealthGen == "Excellent")`
+2. Very Good: `r sum(na.omit(df)$HealthGen == "Vgood")`
+3. Good: `r sum(na.omit(df)$HealthGen == "Good")`
+4. Fair: `r sum(na.omit(df)$HealthGen == "Fair")`
+5. Poor: `r sum(na.omit(df)$HealthGen == "Poor")`
+
+Additionally, data is missing for `r sum(is.na(df$HealthGen))` rows in the data.
+
+#### Part b. - Which variable in the df dataset contains the greater number of missing values? 
+
+```{r}
+apply(X = df, MARGIN = 2, FUN = function(x) sum(is.na(x)))
+```
+
+The depressed variable contains the greatest number of missing values.
+
+
+#### Part c. - Create a new object named df2 that contains the adults with complete data. 
+
+```{r}
+df2 <- na.omit(df %>% filter(Age >= 18))
+nrow(df2)
+```
+#### Part d. - Using a seed of 123, perform an 80/20 training/validation split of the df2 dataset. 
+
+```{r}
+set.seed(123)
+trainInd <- sample(1:nrow(df2), floor(0.80 * nrow(df2)))
+set.seed(NULL)
+
+Train <- df2[trainInd, ]
+Validation <- df2[-trainInd, ]
+```
+
+## Problem 2 - Classification Tree
+
+#### Part a. - Grow a classification tree for predicting the self-reported health status using all other variables in the dataset. To grow the tree, use a complexity parameter (cp) value of 0.003. Implement 10-fold cross validation based on a seed of 123 and produce the cptable.
+
+```{r}
+set.seed(123)
+tree_model1 <- rpart(HealthGen ~ . , data = Train, method = "class", cp = 0.003, xval = 10)
+tree_model1$cptable
+```
+
+#### Part b. - What is the optimal value of the complexity parameter based on the one standard error (1se) rule?
+
+```{r}
+cpRow <- which.min(tree_model1$cptable[ , "xerror"])
+target <- tree_model1$cptable[ , "xerror"][cpRow] +tree_model1$cptable[ , "xstd"][cpRow]
+cpRow1se <- which(tree_model1$cptable[ , "xerror"] < target)[1]
+cpChoice1se <- tree_model1$cptable[ , "CP"][cpRow1se]
+cpChoice1se
+```
+
+The optimal complexity parameter is `r cpChoice1se`
+
+#### Part c. - Prune the tree using the complexity parameter from the 1se rule. Create a visualization of the pruned tree.
+
+```{r, fig.width=10}
+tree_model1_pruned <- prune(tree_model1, cp=cpChoice1se)
+fancyRpartPlot(tree_model1_pruned, cex=0.4)
+```
+
+#### Part d. - Using the pruned tree, report the validation set accuracy and create a confusion matrix summarizing the results of the predictions on the validation data.
+
+```{r}
+predHealth <- predict(tree_model1_pruned, newdata = Validation, type = "class")
+
+tree_model_accuracy <- mean(predHealth == Validation$HealthGen)
+
+table(predHealth, Validation$HealthGen)
+```
+
+
+The overall multi-class accuracy of the model is: `r round(tree_model_accuracy, digits = 3)`
+
+#### Part e. - Which class of HealthGen was most likely to be correctly predicted? Explain your reasoning.
+
+```{r}
+conditional_prob <- function(condition, truth, prediction) {
+  numerator <- sum((truth == condition) & (prediction == condition))
+  denominatior <- sum(truth == condition)
+  return(numerator/denominatior)
+}
+conditional_prob("Excellent", Validation$HealthGen, predHealth)
+```
+
+Using conditional probability to quantify the likelihood of predicting a health status given that health status:
+
+1. Excellent: `r conditional_prob("Excellent", Validation$HealthGen, predHealth)`
+2. Very Good: `r conditional_prob("Vgood", Validation$HealthGen, predHealth)`
+3. Good: `r conditional_prob("Good", Validation$HealthGen, predHealth)` 
+4. Fair: `r conditional_prob("Fair", Validation$HealthGen, predHealth)`
+5. Poor: `r conditional_prob("Poor", Validation$HealthGen, predHealth)`
+
+Based on conditional probability, "good" health status is the most likely to be predicted correctly.
+
+#### Part f. - Based on the pruned tree, which 3 variables were the most important? 
+
+```{r, results='hide'}
+printout <- summary(tree_model1_pruned)
+```
+```{r}
+printout$variable.importance
+```
+
+The most important variables with their importance values are:
+
+1. Poverty - 76.052
+2. Education - 60.632
+3. BMI - 60.186
+
+## Problem 3 - k-Nearest Neighbors
+
+#### Part a. - Prepare the data. Using only the quantitative variables in df2 as potential features, scale the features to have mean of 0 and a standard deviation of 1. Then, use a seed of 123 to perform an 80/20 training/validation split.
+
+```{r}
+df2_quant <- df2 %>% select(-Gender, -Education, -HomeOwn, -Diabetes, -Depressed, -PhysActive, -MaritalStatus)
+xvars <- c("Age", "Poverty", "HomeRooms", "Weight", "Height", "BMI", "Pulse", "BPSysAve", "BPDiaAve")
+df2_quant[, xvars] <- scale(x = df2_quant[, xvars], center = TRUE, scale = TRUE)
+set.seed(123)
+trainInd <- sample(1:nrow(df2_quant), floor(0.80 * nrow(df2_quant)))
+set.seed(NULL)
+Train <- df2_quant[trainInd, ]
+Validation <- df2_quant[-trainInd, ]
+```
+
+
+#### Part b. - Implement kNN classification. Using values of k ranging from 1 to 20, create a plot showing the accuracy values based on predictions on the validation data as a function of k.
+
+```{r}
+num_folds <- 10
+folds <- cut(x = 1:nrow(df2_quant), breaks = num_folds, labels = FALSE)
+
+set.seed(123)
+folds <- sample(folds)
+set.seed(NULL)
+
+maxK <- 20
+accMatrix <- matrix(NA, nrow = num_folds, ncol = maxK)
+
+for(i in 1:num_folds){
+  valInd <- which(folds == i)
+  Validation <- df2_quant[valInd,]
+  Train <- df2_quant[-valInd,]
+  
+  for(j in 1:maxK){
+    knnResTemp <- 
+    knn(train = Train[ , xvars, drop = FALSE],
+        test = Validation[ , xvars, drop = FALSE],
+        cl = Train$HealthGen,
+        k = j)
+
+    Validation <-
+      Validation %>%
+      mutate(predHealth = knnResTemp)
+    
+    pred<- factor(knnResTemp, levels = levels(df2_quant$HealthGen))
+    truth <- factor(Validation$HealthGen, levels = levels(df2_quant$HealthGen))
+    
+    accMatrix[i,j] <- mean(pred == truth)
+    }
+}
+
+accMeans <- apply(accMatrix, 2, mean)
+
+tempDF <- data.frame(k = 1:maxK, Accuracy = accMeans)
+
+ggplot(data = tempDF,
+       mapping = aes(x = k, y = Accuracy)) +
+  geom_line() +
+  labs(x = "Number of Nearest Neighbors",
+       y = "Accuracy") +
+  geom_point(data = tempDF[which.max(accMeans), ],
+             color = "red", shape = 1, size =3)
+```
+
+#### Part c. - Based on the plot in Part b., what value of k is optimal?
+
+Based on the plot, it appears that 1 nearest neighbor yields the best performance.
+
+#### Part d.- How does the predictive performance of the kNN classifier (at the optimal value of k) perform relative to the pruned classification tree’s predictive performance? 
+
+```{r}
+# remaking the splits due to the cross fold variable overwrites
+set.seed(123)
+trainInd <- sample(1:nrow(df2_quant), floor(0.80 * nrow(df2_quant)))
+set.seed(NULL)
+Train <- df2_quant[trainInd, ]
+Validation <- df2_quant[-trainInd, ]
+optimalKnnRes <-  knn(train = Train[ , xvars, drop = FALSE],
+        test = Validation[ , xvars, drop = FALSE],
+        cl = Train$HealthGen,
+        k = 1)
+Validation <-
+  Validation %>%
+  mutate(predHealth = optimalKnnRes)
+
+knn_accuracy <- mean(Validation$HealthGen == Validation$predHealth)
+```
+
+The accuracy for the KNN model with 1 nearest neighbor is `r round(knn_accuracy, digits = 3)` while the tree model had an accuracy of `r round(tree_model_accuracy, digits = 3)`.
+The knn model scores `r round((knn_accuracy - tree_model_accuracy)/tree_model_accuracy * 100, digits = 3)`% higher than the tree model.
+
+
+#### Part e. - In Part b., we considered values of k ranging from 1 to 20. What happens if we tried to use values of k ranging from 1 to 25? Explain the error and how to correct it.
+
+```{r}
+num_folds <- 10
+folds <- cut(x = 1:nrow(df2_quant), breaks = num_folds, labels = FALSE)
+
+set.seed(123)
+folds <- sample(folds)
+set.seed(NULL)
+
+maxK <- 25
+accMatrix <- matrix(NA, nrow = num_folds, ncol = maxK)
+
+for(i in 1:num_folds){
+  valInd <- which(folds == i)
+  Validation <- df2_quant[valInd,]
+  Train <- df2_quant[-valInd,]
+  
+  for(j in 1:maxK){
+    knnResTemp <- 
+    knn(train = Train[ , xvars, drop = FALSE],
+        test = Validation[ , xvars, drop = FALSE],
+        cl = Train$HealthGen,
+        k = j)
+
+    Validation <-
+      Validation %>%
+      mutate(predHealth = knnResTemp)
+    
+    pred<- factor(knnResTemp, levels = levels(df2_quant$HealthGen))
+    truth <- factor(Validation$HealthGen, levels = levels(df2_quant$HealthGen))
+    
+    accMatrix[i,j] <- mean(pred == truth)
+    }
+}
+
+accMeans <- apply(accMatrix, 2, mean)
+
+tempDF <- data.frame(k = 1:maxK, Accuracy = accMeans)
+
+ggplot(data = tempDF,
+       mapping = aes(x = k, y = Accuracy)) +
+  geom_line() +
+  labs(x = "Number of Nearest Neighbors",
+       y = "Accuracy") +
+  geom_point(data = tempDF[which.max(accMeans), ],
+             color = "red", shape = 1, size =3)
+```
+
+An error was not raised while increasing the `k` search range from 20 to 25. This is probably due to an error that was fixed previously, where one of the splits
+was missing all of the factors and an exception was raised during accuracy calculation. 
+
+This was fixed by explicitly specifying the factor levels using the full dataset:
+
+```r
+    pred<- factor(knnResTemp, levels = levels(df2_quant$HealthGen))
+    truth <- factor(Validation$HealthGen, levels = levels(df2_quant$HealthGen))
+```

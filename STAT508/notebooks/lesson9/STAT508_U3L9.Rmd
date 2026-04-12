@@ -1,0 +1,396 @@
+---
+title: "U3L9 - Nonlinear Classification"
+output: html_document
+date: "Type date here"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+library(palmerpenguins)
+library(FNN) #For k-nearest neighbors
+library(rpart) #For classification and regression trees
+library(rattle) #For creating nice visualizations of trees
+
+#Read in Data
+titanic <- read.csv("../../sample_data/L08_titanic3.csv")
+```
+
+## Example - k-Nearest Neighbors in R using Titanic Data
+#### Part a - Prepare the data 
+```{r}
+#Check for NA's
+apply(X = titanic, MARGIN = 2, FUN = function(x) sum(is.na(x)))   #margin = 2 means column while 1 means row
+#Create Indicators
+titanic <- 
+  titanic %>% 
+  mutate(Male = ifelse(Sex == "male", 1, 0))
+  
+
+#Create a vector to hold the names of input variables
+xvars <- c("Age", "Male", "Fare", "Pclass")
+#Scale the input variables
+titanic[, xvars] <- scale(x = titanic[, xvars], center = TRUE, scale = TRUE)
+
+
+#Perform Training/Validation Split
+set.seed(123)
+trainInd <- sample(1:nrow(titanic), floor(0.85 * nrow(titanic)))
+set.seed(NULL)
+
+Train <- titanic[trainInd, ]
+Validation <- titanic[-trainInd, ]
+```
+
+#### Part b - Build the kNN model using 5 nearest neighbors 
+```{r}
+#Build kNN model with k = 5
+knnRes <- knn(train = Train[, xvars, drop = FALSE],
+              test = Validation[, xvars, drop =FALSE],
+              cl = Train$Survived,
+              k = 5) #drop = false prevents coercion down to a vector for 1 column dataframe
+#View Results
+#knnRes #Generally, do not include this in your code
+```
+
+#### Part c - Add the predictions to the validation set and name the new variable predSurvival.
+```{r}
+#Add Predictions to Validation Data (name them predSurvival)
+Validation <-
+  Validation %>%
+  mutate(predSurvival = knnRes)
+```
+
+
+#### Part d - Create a confusion matrix
+```{r}
+#Create a confusion matrix (rows = predictions, columns = true status)
+table(Validation$predSurvival, Validation$Survived)
+```
+
+#### Part e - Find the overall accuracy of the classifier
+```{r}
+#Calculate the accuracy
+mean(Validation$Survived == Validation$predSurvival)
+```
+
+
+## Example - Determining the Optimal Number of Nearest Neighbors using a Loop
+#### Part a - Use a for loop to run the kNN classifier for values of k from ranging 1 to 75
+```{r}
+#Initialize 
+maxK <- 100
+accVec <- rep(NA, maxK)
+
+#Loop for using various values of k
+for(i in 1:maxK){
+  #Build kNN model
+  knnRes <- knn(train = Train[, xvars, drop = FALSE],
+              test = Validation[, xvars, drop =FALSE],
+              cl = Train$Survived,
+              k = i)
+  #Add predictions to validation data
+  Validation <- Validation %>%
+      mutate(predSurvival = knnRes)
+  
+   accVec[i] <- mean(Validation$Survived == Validation$predSurvival)
+  #Store the accuracy result
+ 
+}
+
+#View the accuracy values
+which.max(accVec)
+accVec[which.max(accVec)]
+```
+
+#### Part b - Create a plot showing the accuracy values as a function of k
+```{r}
+#Create a temporary data frame for plotting
+tempDF <- data.frame(k = 1:maxK, Accuracy = accVec)
+
+#Create a plot showing accuracy as a function of k
+ggplot(tempDF, aes(x = k, y = Accuracy)) + geom_line() + geom_point(data = tempDF[which.max(accVec),], color = "red", shape = 1, size = 3)
+```
+
+#### Part c - Repeat the process using a random seed of 321. Which value of k would you choose?
+```{r}
+#Perform Training/Validation Split
+set.seed(321)
+trainInd <- sample(1:nrow(titanic), floor(0.85 * nrow(titanic)))
+set.seed(NULL)
+
+Train <- titanic[trainInd, ]
+Validation <- titanic[-trainInd, ]
+
+#Initialize 
+maxK <- 75
+accVec2 <- rep(NA, maxK)
+
+#Loop for using various values of k
+for(i in 1:maxK){
+  #Build kNN model
+  knnResTemp <- 
+    knn(train = Train[ , xvars, drop = FALSE],
+        test = Validation[ , xvars, drop = FALSE],
+        cl = Train$Survived,
+        k = i)
+  
+  #Add predictions to validation data
+  Validation <-
+    Validation %>%
+    mutate(predSurvival = knnResTemp)
+  
+  #Store result
+  accVec2[i] <- mean(Validation$Survived == Validation$predSurvival)
+}
+
+#View the accuracy values
+accVec2
+
+#Determine the optimal number of neighbors
+which.max(accVec2)
+
+#Determine the optimal accuracy
+accVec2[which.max(accVec2)]
+
+#Create a temporary data frame for plotting
+tempDF2 <- data.frame(k = 1:maxK, Accuracy = accVec2)
+
+#Create a plot showing accuracy as a function of k
+ggplot(data = tempDF2,
+       mapping = aes(x = k, y = Accuracy)) +
+  geom_line() +
+  labs(x = "Number of Nearest Neighbors",
+       y = "Accuracy") +
+  geom_point(data = tempDF2[which.max(accVec2), ],
+             color = "red", shape = 1, size =3)
+```
+
+#### Part d - k-fold Cross Validation
+```{r}
+#Create fold values
+num_folds <- 10
+folds <- cut(x = 1:nrow(titanic), breaks = num_folds, labels = FALSE)
+
+set.seed(123)
+folds <- sample(folds) #randomly permute the fold values
+set.seed(NULL)
+
+#Initialize 
+maxK <- 75
+accMatrix <- matrix(NA, nrow = num_folds, ncol = maxK)
+
+#Loop for using various values of k
+for(i in 1:num_folds){
+  #Perform Data Split
+  valInd <- which(folds == i)
+  Validation <- titanic[valInd, ]
+  Train <- titanic[-valInd, ]
+  
+  for(j in 1:maxK){
+    #Build kNN model
+    knnResTemp <- 
+    knn(train = Train[ , xvars, drop = FALSE],
+        test = Validation[ , xvars, drop = FALSE],
+        cl = Train$Survived,
+        k = j)
+    #Add predictions to validation data
+    Validation <-
+      Validation %>%
+      mutate(predSurvival = knnResTemp)
+    
+    #Store result
+    accMatrix[i,j] <- mean(Validation$Survived == Validation$predSurvival)
+    }
+}
+
+#For each value of k, average accuracy values across the 10 folds
+accMeans <- apply(accMatrix, 2, mean)
+
+#Create a temporary data frame for plotting
+tempDF <- data.frame(k = 1:maxK, Accuracy = accMeans)
+
+#Create a plot showing accuracy as a function of k
+ggplot(data = tempDF,
+       mapping = aes(x = k, y = Accuracy)) +
+  geom_line() +
+  labs(x = "Number of Nearest Neighbors",
+       y = "Accuracy") +
+  geom_point(data = tempDF[which.max(accMeans), ],
+             color = "red", shape = 1, size =3)
+```
+
+
+## Example - Classification Tree in R using Titanic Data
+#### Part a - Perform an 85/15 training/validation split using a seed of 123.
+```{r}
+#Read Data into R in case original dataset was modified in earlier example
+titanic <- read.csv("../../sample_data/L08_titanic3.csv")
+
+#Perform Training/Validation Split
+set.seed(123)
+trainInd <- sample(1:nrow(titanic), floor(0.85 * nrow(titanic)))
+set.seed(NULL)
+
+Train <- titanic[trainInd, ]
+Validation <- titanic[-trainInd, ]
+```
+
+
+#### Part b - Grow the classification tree. What are the first 2 splits?
+```{r}
+#Build the classification tree
+classTree <- rpart(Survived  ~ ., data = Train, method = "class")
+#If Survived was a 0/1 indicator, convert Survived to a factor to ensure Classification
+#NOTE: method = "anova" was used for a regression tree
+
+#Display a summary of the tree
+summary(classTree) #Generally speaking, do not include this in your markdown
+
+# The improvement is the based on the GINI index
+```
+
+First Split:
+
+Second Split: 
+
+#### Part c - Create a visualization of the tree. 
+```{r}
+#Visualize the tree (fancyRpartPlot is from the rattle package)
+fancyRpartPlot(classTree, cex = .6)
+```
+
+#### Part e - Predict whether a 35 year-old female passenger who paid 50 for a class 2 ticket will survive 
+```{r}
+predict(classTree, newdata = data.frame(Age = 35, Sex = "female", Fare = 50, Pclass = 2, Siblings = 0, Parch = 0))
+```
+
+#### Part f - Obtain predicted probabilities for the validation set
+```{r}
+#Find Predicted Probabilities
+predProb <- predict(classTree, newdata = Validation, type = "prob")
+#Returns a matrix with 1 row per obs in Validation, and 1 column per response class
+
+#View first six probability predictions
+head(predProb, 6)
+```
+
+#### Part g - Obtain predicted classes for the validation set
+```{r}
+#Determine predicted classes
+predSurv <- predict(classTree, newdata = Validation, type = "class")
+
+#Show the first six predictions
+head(predSurv)
+```
+
+NOTE: To obtain predictions for a regression tree, you can omit the `type = ` specification.
+
+#### Part h - Obtain Confusion matrix and calculate accuracy
+```{r}
+#Create the confusion Matrix
+table(predSurv, Validation$Survived)
+
+#Calculate accuracy
+mean(Validation$Survived == predSurv)
+```
+
+NOTE: For a binary response, we could use the predicted probabilities to generate an ROC curve and/or find AUC.
+
+```{r}
+rocCurve <- pROC::roc(response = Validation$Survived,
+                      predictor = predProb[,2],
+                      legacy.axes = TRUE,
+                      print.auc = TRUE, plot = TRUE)
+```
+
+
+NOTE: For a regression tree, we could use the predicted responses to calculate MSE (or RMSE) for the validation set instead of the accuracy.
+
+
+## Example - Determining Variable Importance
+```{r}
+summary(classTree)
+```
+
+The 3 most important features are
+
+## Example - Node Size
+Putting each observation into its own node would produce a Gini Index of 0, which suggests that each node is pure. Explain why this is not desirable. 
+
+
+## Example -  Pruning the Tree
+#### Part a - Using a complexity parameter (cp) value of 0.001, grow the tree. 
+```{r}
+#Grow the tree and perform 10-fold CV
+set.seed(123)
+fullTree <- rpart(Survived ~ . , data = Train, method = "class", cp = 0.001, xval = 10)
+
+#Display the cptable
+fullTree$cptable
+```
+
+#### Part b - Plot the tree
+```{r}
+fancyRpartPlot(fullTree, cex = 0.7)
+```
+
+#### Part c - Visualize the results of the cross validation procedure. 
+```{r}
+plotcp(fullTree)
+```
+
+#### Part d - What is the optimal value of the complexity parameter based on minimizing the cross validation error? 
+```{r}
+#Determine the row of cptable containing smallest CV error
+cpRow <- which.min(fullTree$cptable[ , "xerror"])
+
+#Determine optimal value of cp 
+cpChoiceMin <- fullTree$cptable[ , "CP"][cpRow]
+
+#Display the choice
+cpChoiceMin
+```
+
+#### Part e - What is the optimal value of the complexity parameter based on the 1se rule?
+```{r}
+#Determine the row of cptable containing smallest CV error
+cpRow <- which.min(fullTree$cptable[ , "xerror"])
+
+#Calculate min(xerror) + xstd
+target <- fullTree$cptable[ , "xerror"][cpRow] +fullTree$cptable[ , "xstd"][cpRow]
+
+#Determine which xerror values are less than target and select first such value
+cpRow1se <- which(fullTree$cptable[ , "xerror"] < target)[1]
+
+cpChoice1se <- fullTree$cptable[ , "CP"][cpRow1se]
+
+#Display the choice
+cpChoice1se
+```
+
+#### Part f - Prune the tree
+```{r}
+#Prune the true
+prunedTree <- prune(fullTree, cp=cpChoice1se)
+
+#View the pruned tree
+fancyRpartPlot(prunedTree, cex=0.65)
+```
+
+#### Part g - Using the pruned tree, find the validation set accuracy
+```{r}
+#Obtain the predicted classes
+prunedPred <- predict(prunedTree, newdata = Validation, type = "class")
+  
+#Calculate the accuracy
+mean(Validation$Survived == prunedPred)
+```

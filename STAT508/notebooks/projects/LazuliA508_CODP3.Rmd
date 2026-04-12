@@ -1,0 +1,755 @@
+---
+title: "Unit 3 Project"
+author: "Ada Lazuli"
+date: "April 12, 2026"
+output:
+  html_document:
+    highlight: tango
+    toc: true
+    toc_float: true
+    code_folding: hide
+    code-tools: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r, warning = FALSE, message = FALSE}
+remove(list = ls()) 
+#Load libraries
+library(reactable)
+library(patchwork) 
+library(tidyverse)
+library(pROC)
+library(FNN)
+library(rpart)
+library(rattle)
+#Read datasets into Environment
+library(glmnet)
+cod_df <- read.csv("../../sample_data/STAT508_CODGamesP2.csv")
+```
+
+## Task 1 EDA and Wrangling before Modeling
+
+#### Data Wrangling
+
+First, subset the data to only observations that are of a full game.
+
+```{r}
+cod_df <- cod_df %>%
+  filter(FullPartial == "Full") 
+
+
+sum(cod_df$PlayerTeamScore == cod_df$OpponentTeamScore)
+```
+
+It appears that there are exactly 3 instances of ties in the data.
+
+The rule for deciding the outcome will be whichever side had the largest score. This should account for games running till the timer runs out and games where
+a team exceeds the victory scoring threshold. Additionally, since we only have 3 instances of a tie, we will discard those observations. Being able to predict
+a tie is not very useful for the research question and since there are only 3 examples, the models will likely perform poorly to predict it.
+
+```{r}
+cod_df <- cod_df %>%
+  filter(!(PlayerTeamScore == OpponentTeamScore)) %>%
+  mutate(Outcome = ifelse(PlayerTeamScore > OpponentTeamScore, 1, 0))
+reactable(cod_df)
+```
+
+```{r}
+table(cod_df$Outcome)
+```
+
+Now the outcome has been recorded with a "1" for a win and a "0" for a loss. 
+
+The outcome feature has 215 losses and 274 wins, so there is a slight class imbalance with wins being more common. Therefore a bias towards victory might frequently manifest during EDA. The expected bias towards victory would be around `r round((274 - 215) /274 , digits = 2)`
+
+Next, the following features will be removed to tidy the data:
+
+1. PlayerTeamScore - Since this was used derive the outcome
+2. OpponentTeamScore - Since this was used to derive the outcome
+3. FullPartial - Since this only contains "Full" after sub-setting
+
+```{r}
+cod_df <- cod_df %>% select(-FullPartial, -PlayerTeamScore, -OpponentTeamScore)
+```
+
+#### EDA on Constructed Outcomes
+
+Since the outcome is a new feature, it is worthwhile to explore explore how the other features interact with the new outcomes feature.
+
+```{r, fig.height=10, fig.width=10}
+temp_df <- cod_df %>%
+  mutate(Outcome = ifelse(Outcome == 1, 1, -1)) %>%
+  group_by(Level) %>%
+  summarise(Outcome = mean(Outcome),
+            Count = n())
+
+frequency <- ggplot(temp_df, aes(x = Level, y = Count)) + geom_col() + coord_flip() + labs(x = "Map", y = "Number of Observations", 
+                                                                                                         title = "Map Representation In The Data")
+outcome_bias <- ggplot(temp_df, aes(x = Level, y = Outcome)) + geom_col() + coord_flip() + labs(x = "Map", y = "Win / Lose Average", 
+                                                                                                         title = "Map Win / Lose Bias")
+(frequency+outcome_bias)
+```
+
+Based on the level plots, it appears that some maps favor victory while others are biased towards a loss. Considering that the data might not be all inclusive 
+of all of the maps, DLC might add more maps in the future, and the data does not capture which "side" a map favors, such as blue team or red team. It seems
+appropriate to drop the level feature from future consideration.
+
+```{r, fig.height=4, fig.width=10}
+cod_df <- cod_df %>% select(-Level)
+
+temp_df <- cod_df %>%
+  mutate(Outcome = ifelse(Outcome == 1, 1, -1)) %>%
+  group_by(Game) %>%
+  summarise(Outcome = mean(Outcome),
+            Count = n())
+
+frequency <- ggplot(temp_df, aes(x = Game, y = Count)) + geom_col() + coord_flip() + labs(x = "Game", y = "Number of Observations", 
+                                                                                                         title = "Game Representation In The Data")
+outcome_bias <- ggplot(temp_df, aes(x = Game, y = Outcome)) + geom_col() + coord_flip() + labs(x = "Game", y = "Win / Lose Average", 
+                                                                                                         title = "Game Win / Lose Bias")
+(frequency+outcome_bias)
+```
+
+It appears that there is extreme class imbalance in the game type and the less represented games have a stronger bias towards a loss. Additionally, due to the effects on the 
+other features, such as deaths, scoring, and damage, it would probably better to narrow the score to we represented "Team Death Match" game type.
+
+```{r, fig.height=2, fig.width=10}
+cod_df <- cod_df %>% filter(Game == "TDM") %>% select(-Game)
+
+temp_df <- cod_df %>%
+  mutate(Outcome = ifelse(Outcome == 1, 1, -1)) %>%
+  group_by(Mode) %>%
+  summarise(Outcome = mean(Outcome),
+            Count = n())
+
+frequency <- ggplot(temp_df, aes(x = Mode, y = Count)) + geom_col() + coord_flip() + labs(x = "Mode", y = "Number of Observations", 
+                                                                                                         title = "Mode Representation In The Data")
+outcome_bias <- ggplot(temp_df, aes(x = Mode, y = Outcome)) + geom_col() + coord_flip() + labs(x = "Mode", y = "Win / Lose Average", 
+                                                                                                         title = "Mode Win / Lose Bias")
+(frequency+outcome_bias)
+```
+
+Both of the HardCore and Core game modes are well balanced in the data and only have a slight bias of 0.05 to 0.1 towards wins. Since the game mode affects damage,
+it should probably remain in the data.
+
+```{r, fig.height=10, fig.width=10}
+temp_df <- cod_df %>%
+  mutate(Outcome = ifelse(Outcome == 1, 1, -1)) %>%
+  group_by(XPType) %>%
+  summarise(Outcome = mean(Outcome),
+            Count = n())
+
+frequency <- ggplot(temp_df, aes(x = XPType, y = Count)) + geom_col() + coord_flip() + labs(x = "XPType", y = "Number of Observations", 
+                                                                                                         title = "XPType Representation In The Data")
+outcome_bias <- ggplot(temp_df, aes(x = XPType, y = Outcome)) + geom_col() + coord_flip() + labs(x = "XPType", y = "Win / Lose Average", 
+                                                                                                         title = "XPType Win / Lose Bias")
+
+
+xp1 <- ggplot(cod_df, aes(TotalXP, color = XPType, fill = XPType )) + geom_boxplot() 
+xp2 <- ggplot(cod_df %>% mutate(Outcome = ifelse(Outcome == 1, "Win", "Lose")), aes(TotalXP, color = Outcome, fill = Outcome )) + geom_boxplot() + facet_wrap(~XPType)
+(frequency+outcome_bias) / ((xp1 + labs(title = "Boxplots Comparing TotalXP Awarded by XPType"))/ (xp2 + labs(title = "Boxplots Comparing Outcome and Total XP, Faceted By XPType")))
+```
+
+As with the game mode feature, the class imbalance seems to be minimal and there is only a slight bias towards victory, as expected due to victories being more
+prominent in the data. However, the XPType directly affects the totalXP awarded for the match. The lower boxplots show that there is a slight trend of higher 
+experience payout leading to victory. 
+
+It seems that the XPType should remain included since it describes an increase to the totalXP awarded that is not based on player performance.
+
+```{r, fig.height=5, fig.width=10}
+eliminations <-  ggplot(cod_df %>% mutate(Outcome = ifelse(Outcome == 1, "Win", "Lose")), aes(Eliminations, color = Outcome, fill = Outcome )) + geom_boxplot()
+deaths <- ggplot(cod_df %>% mutate(Outcome = ifelse(Outcome == 1, "Win", "Lose")), aes(Deaths, color = Outcome, fill = Outcome )) + geom_boxplot()
+scores <- ggplot(cod_df %>% mutate(Outcome = ifelse(Outcome == 1, "Win", "Lose")), aes(Score, color = Outcome, fill = Outcome )) + geom_boxplot()
+damage <- ggplot(cod_df %>% mutate(Outcome = ifelse(Outcome == 1, "Win", "Lose")), aes(Damage, color = Outcome, fill = Outcome )) + geom_boxplot()
+
+((eliminations + labs(title = "Boxplots Comparing Match Outcomes and Eliminations"))/(deaths + labs(title = "Boxplots Comparing Match Outcomes and Player Deaths"))/(scores + labs(title = "Boxplots Comparing Match Outcomes and Player Score"))/(damage + labs(title = "Boxplots Comparing Match Outcomes and Damage Dealt"))) 
+```
+
+Lastly, the win and loss outcomes seem to vary reasonably based on the game metrics, such as wins being more wins for more eliminations and losses being associated
+with more deaths.
+
+## Task 2 Classification Models
+
+Before creating any classification models, the data will be split into training and validation sets.
+
+#### Train/Validation Split
+
+```{r}
+cod_df <- cod_df %>%
+  mutate(XPType = ifelse(XPType == "Regular", 1, 0)) %>%
+  mutate(Mode = ifelse(Mode == "HardCore", 1, 0))
+xvars <- names(cod_df %>% select(-Outcome))
+cod_df[, xvars] <- scale(x = cod_df[, xvars], center = TRUE, scale = TRUE)
+set.seed(123)
+trainInd <- sample(1:nrow(cod_df), floor(0.8*nrow(cod_df)))
+set.seed(NULL)
+Train <- cod_df[trainInd, ]
+Validation <- cod_df[-trainInd,]
+
+Xmat <- model.matrix(Outcome ~ ., data = cod_df)[, -1]
+yvec <- cod_df$Outcome
+XmatTrain <- Xmat[trainInd,]
+XmatVal <- Xmat[-trainInd,]
+yvecTrain <- yvec[trainInd]
+yvecVal <- yvec[-trainInd]
+```
+
+The data was split using a random seed of 123 and a 80%/20% split. The resulting training set has `r nrow(Train)` observations while the validation set has `r nrow(Validation)`
+
+Additionally, the XPType was encoded such that regular XP matches have a 1 and Double XP matches have a 0. Similarly, the game mode was encoded such that
+HardCore games have a value of 1 and Core games have a value of 0.
+
+After the encoding, the data was standardized to have a center of 0 and a standard deviation of 1.
+
+*Note:* To prevent researcher influence, the validation set will not be considered until all of the classification models have created using the training data.
+
+#### Logistic Regression
+
+A best subsets approach with backward elimination will be used to perform the logistic regression.
+
+```{r}
+intercept_only <- glm(Outcome ~ 1, 
+                      family = binomial,
+                      data = Train)
+
+full_model <- glm(Outcome ~ ., 
+                  family = binomial,
+                  data = Train)
+
+stats::step(object = full_model, 
+            scope = list(lower = intercept_only, upper = full_model),
+            data = Train,
+            direction = "backward")
+```
+
+Based on the Decreasing AIC score, it appears that the best logistic regression model has an AIC of 383.06.
+
+```{r}
+model_logistic <- glm(Outcome ~ Damage + XPType + TotalXP + Eliminations + Score + Deaths, data = Train, family = binomial)
+summary(model_logistic)
+```
+
+```{r, message=FALSE}
+#Metrics for the logistic regression:
+predProb <- predict(model_logistic, newdata = Train, type = "response")
+rocCurve2 = roc(response = Train$Outcome,
+               predictor = predProb, 
+               plot = TRUE, 
+               print.auc = TRUE, 
+               legacy.axes=TRUE)
+```
+
+The area under the curve for the logistic regression model against the training data is: `r round(as.numeric(rocCurve2$auc), digits = 3)`
+
+Next, the classification threshold needs to be chosen for the logistic regression. The method to choose the optimal threshold will be iterating from 1 to 1000
+and dividing each ith number by 1000. That resulting number will be the classification threshold. Then the accuracy will be recorded using that temporary threshold.
+
+Since there are not any special concerns with Type I or Type II errors, this approach should be acceptatble in the scope of the classification task.
+
+```{r}
+res <- 1000
+accVec <- rep(NA, res)
+thresholdVec <- rep(NA, res)
+for (i in 1:res){
+  threshold = i/res
+  predOutcome <- ifelse(predProb > threshold, 1, 0)
+  accVec[i] <- mean(predOutcome == Train$Outcome)
+  thresholdVec[i] <- threshold
+  
+}
+best_threshold <- which.max(accVec)/res
+tempDF <- data.frame(k = thresholdVec, Accuracy = accVec)
+ggplot(tempDF, aes(x = k, y = Accuracy)) + geom_line() + geom_point(data = tempDF[which.max(accVec),], color = "red", shape = 1, size = 3) +
+  labs(x = "Classification Threshold", y = "Accuracy", title = "Choosing Optimal Classification Threshold")
+```
+
+Based on the plot, the best threshold for the logistic regression appears to be `r best_threshold`
+
+```{r}
+
+accuracy_func <- function(Pred, Truth) {
+  return(round(mean(Pred == Truth), digits = 3))
+}
+specificity_func <- function(Pred, Truth) {
+  tn <- sum(Pred == 0 & Truth == 0)
+  fp <- sum(Pred == 1 & Truth == 0)
+  score <- tn/(tn + fp)
+  return(round(score, digits =  3))
+}
+sensitivity_func <- function(Pred, Truth) {
+  tp <- sum(Pred == 1 & Truth == 1)
+  fn <- sum(Pred == 0 & Truth == 1)
+  score <- tp/(tp + fn)
+  return(round(score, digits =  3))
+}
+precision_func <- function(Pred, Truth) {
+  tp <- sum(Pred == 1 & Truth == 1)
+  fp <- sum(Pred == 1 & Truth == 0)
+  score <- tp/(tp + fp)
+  return(round(score, digits =  3))
+}
+predOutcome <- ifelse(predProb > best_threshold, 1, 0)
+table(predOutcome, Train$Outcome)
+```
+
+The confusion matrix confirms that the model correctly classifies most of the outcomes and that it tends to have slightly more false negatives than false positives.
+
+The other classification metrics against the training set using a classification threshold of `r best_threshold` are:
+
+1. **Accuracy**: `r accuracy_func(predOutcome, Train$Outcome)`
+2. **Specificity**: `r specificity_func(predOutcome, Train$Outcome)`
+3. **Sensitivity**: `r sensitivity_func(predOutcome, Train$Outcome)`
+4. **Precision**: `r precision_func(predOutcome, Train$Outcome)`
+
+#### k-Nearest Neighbors
+
+The k tuning parameter will be chosen by performing 10 cross folds for each k value candidate and averaging the accuracy for each fold. The candidate k values will
+be explored from $K = 1$ to $K = 100$
+
+```{r}
+set.seed(123)
+num_folds <- 10
+xvars <- names(Train %>% select(-Outcome))
+folds <- cut(x = 1:nrow(Train), breaks = num_folds, labels = FALSE)
+
+
+folds <- sample(folds) #randomly permute the fold values
+
+#Initialize 
+maxK <- 100
+accMatrix <- matrix(NA, nrow = num_folds, ncol = maxK)
+
+#Loop for using various values of k
+for(i in 1:num_folds){
+  #Perform Data Split
+  valInd <- which(folds == i)
+  validation_temp <- Train[valInd, ]
+  train_temp <- Train[-valInd, ]
+  
+  for(j in 1:maxK){
+    #Build kNN model
+    knnResTemp <- 
+    knn(train = train_temp[ , xvars, drop = FALSE],
+        test = validation_temp[ , xvars, drop = FALSE],
+        cl = train_temp$Outcome,
+        k = j)
+    #Add predictions to validation data
+    validation_temp <-
+      validation_temp %>%
+      mutate(predOutcome = knnResTemp)
+    
+    #Store result
+    accMatrix[i,j] <- mean(validation_temp$Outcome == validation_temp$predOutcome)
+    }
+}
+#For each value of k, average accuracy values across the 10 folds
+accMeans <- apply(accMatrix, 2, mean)
+
+#Create a temporary data frame for plotting
+tempDF <- data.frame(k = 1:maxK, Accuracy = accMeans)
+
+#Create a plot showing accuracy as a function of k
+ggplot(data = tempDF,
+       mapping = aes(x = k, y = Accuracy)) +
+  geom_line() +
+  labs(x = "Number of Nearest Neighbors",
+       y = "Accuracy",
+       title = "Choosing Optimal K Neighbors") +
+  geom_point(data = tempDF[which.max(accMeans), ],
+             color = "red", shape = 1, size =3)
+
+accMeans_bak <- accMeans
+best_k <- as.numeric(which.max(accMeans))
+accMeans[best_k] <- 0
+second_best_k <- as.numeric(which.max(accMeans))
+accMeans[which.max(accMeans)] <- 0
+third_best_k <- as.numeric(which.max(accMeans))
+```
+
+Based on the plot, the top 3 best K values are:
+
+1. `r best_k` with a training accuracy of `r round(accMeans_bak[best_k], digits = 3)`
+2. `r second_best_k` with a training accuracy of `r round(accMeans_bak[second_best_k], digits = 3)`
+3. `r third_best_k` with a training accuracy of `r round(accMeans_bak[third_best_k], digits = 3)`
+
+Given that the third best k value uses nearly half the neighbors and achieves an accuracy score close to the using `r best_k` neighbors, `r third_best_k` might
+be the best k parameter for hopes of minimizing over fitting. 
+
+```{r}
+set.seed(123)
+trainInd <- sample(1:nrow(Train), floor(0.7*nrow(Train)))
+train_temp <- Train[trainInd,]
+validation_temp <- Train[-trainInd, ]
+
+knnResTemp <- 
+    knn(train = train_temp[ , xvars, drop = FALSE],
+        test = validation_temp[ , xvars, drop = FALSE],
+        cl = train_temp$Outcome,
+        k = best_k)
+
+predOutcome1 <- ifelse(knnResTemp == 1, 1, 0)
+table(predOutcome1, validation_temp$Outcome)
+```
+
+The confusion matrix confirms that the model correctly classifies most of the outcomes and that it tends to have slightly more false positives than false negatives
+
+The other classification metrics against the training set are:
+
+```{r}
+knnResTemp <- 
+    knn(train = train_temp[ , xvars, drop = FALSE],
+        test = validation_temp[ , xvars, drop = FALSE],
+        cl = train_temp$Outcome,
+        k = second_best_k)
+
+predOutcome2 <- ifelse(knnResTemp == 1, 1, 0)
+
+knnResTemp <- 
+    knn(train = train_temp[ , xvars, drop = FALSE],
+        test = validation_temp[ , xvars, drop = FALSE],
+        cl = train_temp$Outcome,
+        k = third_best_k)
+
+predOutcome3 <- ifelse(knnResTemp == 1, 1, 0)
+
+
+performance_df <- data.frame(Name = "KNN (K=81)", 
+                             Accuracy = accuracy_func(predOutcome1, validation_temp$Outcome),
+                             Specificity = specificity_func(predOutcome1, validation_temp$Outcome),
+                             Sensitivity = sensitivity_func(predOutcome1, validation_temp$Outcome),
+                             Precision = precision_func(predOutcome1, validation_temp$Outcome))
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "KNN (K=72)",
+                             Accuracy = accuracy_func(predOutcome2, validation_temp$Outcome),
+                             Specificity = specificity_func(predOutcome2, validation_temp$Outcome),
+                             Sensitivity = sensitivity_func(predOutcome2, validation_temp$Outcome),
+                             Precision = precision_func(predOutcome2, validation_temp$Outcome)))
+
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "KNN (K=37)",
+                             Accuracy = accuracy_func(predOutcome3, validation_temp$Outcome),
+                             Specificity = specificity_func(predOutcome3, validation_temp$Outcome),
+                             Sensitivity = sensitivity_func(predOutcome3, validation_temp$Outcome),
+                             Precision = precision_func(predOutcome3, validation_temp$Outcome)))
+reactable(performance_df)
+```
+
+The model with a k value of 81 generally has the better scores, but it might perform worse against the validation data due to having so many neighbors and the risk
+of over fitting.
+
+#### Classification Tree
+
+The third model for the classification task will be a classification tree. The first tree will be created using all of the features  with a complexity parameter of 0.001
+and will use 10 cross folds. 
+
+```{r, fig.width= 10, fig.height=7, message = FALSE}
+set.seed(123)
+fullTree <- rpart(Outcome ~ . , data = Train, method = "class", cp = 0.001, xval = 10)
+cpRow <- which.min(fullTree$cptable[ , "xerror"])
+
+target <- fullTree$cptable[ , "xerror"][cpRow] +fullTree$cptable[ , "xstd"][cpRow]
+
+cpRow1se <- which(fullTree$cptable[ , "xerror"] < target)[1]
+cpChoice1se <- fullTree$cptable[ , "CP"][cpRow1se]
+fancyRpartPlot(fullTree, cex=0.65)
+```
+
+The resulting tree has 19 terminal nodes, each with a small portion of the training data terminating at those nodes, so this tree has severe risk of over fitting.
+
+```{r, results='hide'}
+printout <- summary(fullTree)
+```
+
+```{r}
+printout$variable.importance
+```
+
+In the order of most significant to least significant, the features are:
+
+1. TotalXP
+2. Eliminations
+3. Deaths
+4. Score
+5. XPType
+6. Mode
+
+```{r}
+fullTree$cptable
+```
+Using the cptable and the 1 standard error rule, the optimal cp value is `r round(cpChoice1se, digits = 3)`. Pruning the tree with this tuning parameter yields
+the following tree
+
+```{r}
+prunedTree <- prune(fullTree, cp=cpRow1se)
+summary(prunedTree)
+```
+
+The resulting pruned tree is a tree with a single terminal node. The pruned tree appears to be too pruned while the full tree seems likely to over fit.
+
+Therefore a second full tree will be created using the first four most significant features:
+
+1. TotalXP
+2. Eliminations
+3. Deaths
+4. Score
+
+```{r, fig.width= 10, fig.height=7, message = FALSE}
+set.seed(123)
+fullTree2 <- rpart(Outcome ~ TotalXP + Eliminations + Deaths + Score , data = Train, method = "class", cp = 0.001, xval = 10)
+cpRow <- which.min(fullTree2$cptable[ , "xerror"])
+
+target <- fullTree2$cptable[ , "xerror"][cpRow] +fullTree2$cptable[ , "xstd"][cpRow]
+
+cpRow1se <- which(fullTree2$cptable[ , "xerror"] < target)[1]
+cpChoice1se <- fullTree2$cptable[ , "CP"][cpRow1se]
+fancyRpartPlot(fullTree2, cex=0.65)
+```
+
+```{r}
+fullTree2$cptable
+```
+
+Using the cptable of the second full tree and the 1 standard error rule, the optimal cp value is `r round(cpChoice1se, digits = 3)`. Pruning the second full tree with this tuning parameter yields the following:
+
+```{r, fig.width= 10, fig.height=4, message = FALSE}
+prunedTree2 <- prune(fullTree2, cp=cpChoice1se)
+fancyRpartPlot(prunedTree2, cex=0.65)
+```
+
+This second pruned tree is much more reasonable than the first pruned tree created previously. It seems to capture the essential of the second full tree while
+having only 5 terminal nodes. This second pruned treee should be much less prone to overfitting and might perform the best of the trees against the validation set.
+
+```{r, warning = FALSE, message=FALSE}
+fullTree_pred <- predict(fullTree, newdata = Train, type = "class")
+prunedTree_pred <- predict(prunedTree, newdata = Train, type = "class")
+fullTree2_pred <- predict(fullTree2, newdata = Train, type = "class")
+prunedTree2_pred <- predict(prunedTree2, newdata = Train, type = "class")
+
+performance_df <- data.frame(Name = "Full Tree", 
+                             Accuracy = accuracy_func(fullTree_pred, Train$Outcome),
+                             Specificity = specificity_func(fullTree_pred, Train$Outcome),
+                             Sensitivity = sensitivity_func(fullTree_pred, Train$Outcome),
+                             Precision = precision_func(fullTree_pred, Train$Outcome))
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "Pruned Tree", 
+                             Accuracy = accuracy_func(prunedTree_pred, Train$Outcome),
+                             Specificity = specificity_func(prunedTree_pred, Train$Outcome),
+                             Sensitivity = sensitivity_func(prunedTree_pred, Train$Outcome),
+                             Precision = precision_func(prunedTree_pred, Train$Outcome)))
+
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "Full Tree 2", 
+                             Accuracy = accuracy_func(fullTree2_pred, Train$Outcome),
+                             Specificity = specificity_func(fullTree2_pred, Train$Outcome),
+                             Sensitivity = sensitivity_func(fullTree2_pred, Train$Outcome),
+                             Precision = precision_func(fullTree2_pred, Train$Outcome)))
+
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "Pruned Tree 2", 
+                             Accuracy = accuracy_func(prunedTree2_pred, Train$Outcome),
+                             Specificity = specificity_func(prunedTree2_pred, Train$Outcome),
+                             Sensitivity = sensitivity_func(prunedTree2_pred, Train$Outcome),
+                             Precision = precision_func(prunedTree2_pred, Train$Outcome)))
+
+reactable(performance_df)
+```
+
+The second full tree has the best accuracy out of all of the trees created and the second pruned tree performs better than the first pruned tree. 
+
+#### Comparison of Models
+
+Next the classification models will be evaluated against the validation set for the first time to assess how they perform against unseen data.
+
+```{r, warning = FALSE, message=FALSE}
+set.seed(123)
+fullTree_pred <- predict(fullTree, newdata = Validation, type = "class")
+prunedTree_pred <- predict(prunedTree, newdata = Validation, type = "class")
+fullTree2_pred <- predict(fullTree2, newdata = Validation, type = "class")
+prunedTree2_pred <- predict(prunedTree2, newdata = Validation, type = "class")
+
+performance_df <- data.frame(Name = "Full Tree", 
+                             Accuracy = accuracy_func(fullTree_pred, Validation$Outcome),
+                             Specificity = specificity_func(fullTree_pred, Validation$Outcome),
+                             Sensitivity = sensitivity_func(fullTree_pred, Validation$Outcome),
+                             Precision = precision_func(fullTree_pred, Validation$Outcome))
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "Pruned Tree", 
+                             Accuracy = accuracy_func(prunedTree_pred, Validation$Outcome),
+                             Specificity = specificity_func(prunedTree_pred, Validation$Outcome),
+                             Sensitivity = sensitivity_func(prunedTree_pred, Validation$Outcome),
+                             Precision = precision_func(prunedTree_pred, Validation$Outcome)))
+
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "Full Tree 2", 
+                             Accuracy = accuracy_func(fullTree2_pred, Validation$Outcome),
+                             Specificity = specificity_func(fullTree2_pred, Validation$Outcome),
+                             Sensitivity = sensitivity_func(fullTree2_pred, Validation$Outcome),
+                             Precision = precision_func(fullTree2_pred, Validation$Outcome)))
+
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "Pruned Tree 2", 
+                             Accuracy = accuracy_func(prunedTree2_pred, Validation$Outcome),
+                             Specificity = specificity_func(prunedTree2_pred, Validation$Outcome),
+                             Sensitivity = sensitivity_func(prunedTree2_pred, Validation$Outcome),
+                             Precision = precision_func(prunedTree2_pred, Validation$Outcome)))
+
+knnResTemp <- 
+    knn(train = Train[ , xvars, drop = FALSE],
+        test = Validation[ , xvars, drop = FALSE],
+        cl = Train$Outcome,
+        k = best_k)
+
+predOutcome1 <- ifelse(knnResTemp == 1, 1, 0)
+
+knnResTemp <- 
+    knn(train = Train[ , xvars, drop = FALSE],
+        test = Validation[ , xvars, drop = FALSE],
+        cl = Train$Outcome,
+        k = second_best_k)
+
+predOutcome2 <- ifelse(knnResTemp == 1, 1, 0)
+
+knnResTemp <- 
+    knn(train = Train[ , xvars, drop = FALSE],
+        test = Validation[ , xvars, drop = FALSE],
+        cl = Train$Outcome,
+        k = third_best_k)
+
+predOutcome3 <- ifelse(knnResTemp == 1, 1, 0)
+
+
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "KNN (K=81)", 
+                             Accuracy = accuracy_func(predOutcome1, Validation$Outcome),
+                             Specificity = specificity_func(predOutcome1, Validation$Outcome),
+                             Sensitivity = sensitivity_func(predOutcome1, Validation$Outcome),
+                             Precision = precision_func(predOutcome1, Validation$Outcome)))
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "KNN (K=72)",
+                             Accuracy = accuracy_func(predOutcome2, Validation$Outcome),
+                             Specificity = specificity_func(predOutcome2, Validation$Outcome),
+                             Sensitivity = sensitivity_func(predOutcome2, Validation$Outcome),
+                             Precision = precision_func(predOutcome2, Validation$Outcome)))
+
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "KNN (K=37)",
+                             Accuracy = accuracy_func(predOutcome3, Validation$Outcome),
+                             Specificity = specificity_func(predOutcome3, Validation$Outcome),
+                             Sensitivity = sensitivity_func(predOutcome3, Validation$Outcome),
+                             Precision = precision_func(predOutcome3, Validation$Outcome)))
+
+predProb <- predict(model_logistic, newdata = Validation, type = "response")
+predOutcome <- ifelse(predProb > best_threshold, 1, 0)
+
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "Logistic Regression (Threshold= 0.566)",
+                             Accuracy = accuracy_func(predOutcome, Validation$Outcome),
+                             Specificity = specificity_func(predOutcome, Validation$Outcome),
+                             Sensitivity = sensitivity_func(predOutcome, Validation$Outcome),
+                             Precision = precision_func(predOutcome, Validation$Outcome)))
+
+
+reactable(performance_df)
+```
+
+The classification trees performed fairly well against the validation data, with the second pruned tree scoring the highest accuracy, even surpassing the logistic regression model.
+
+The K-Nearest Neighbors models generally performed the better than the other families of classifiers, with the model using a k value of 72 generalizing the best
+to the validation set.
+
+The final confusion matrix is:
+
+```{r}
+table(predOutcome2, Validation$Outcome)
+```
+
+The best KNN model performs well, but tends to have more false negatives than false positives.
+
+## Task 3 Extending an Unit 2 Topic
+
+To perform logistic regression using lasso and the glmnet packet, the family parameter needs to be set to "binomial" (Martin, 2025).
+
+```{r}
+lassoCV <- cv.glmnet(x = XmatTrain, y = yvecTrain,
+                    family = "binomial",
+                    alpha = 1, 
+                    lambda = NULL,
+                    standardize = TRUE,
+                    nfolds = 10)
+coefLam1se <- predict(lassoCV, s = lassoCV$lambda.1se, type = "coefficients")
+tempdf <- data.frame(Feature = row.names(coefLam1se), lam1se = as.numeric(coefLam1se))
+reactable(tempdf, searchable = FALSE, compact = TRUE, striped = TRUE, defaultPageSize = 13, showPageSizeOptions = FALSE)
+```
+
+Using the 1 standard error rule, the lambda turning parameter is `r lassoCV$lambda.1se`, the logistic lasso model drives the Mode coefficient to zero, effectively removing it. 
+
+Now, to get the win or loss predictions using the model, the type parameter in the predict function needs to be set to response (Martin, 2025).
+
+```{r}
+predProb <- predict(lassoCV, s = lassoCV$lambda.1se, newx = XmatTrain, type = 'response') 
+res <- 1000
+accVec <- rep(NA, res)
+thresholdVec <- rep(NA, res)
+for (i in 1:res){
+  threshold = i/res
+  predOutcome <- ifelse(predProb > threshold, 1, 0)
+  accVec[i] <- mean(predOutcome == yvecTrain)
+  thresholdVec[i] <- threshold
+  
+}
+predOutcome <- ifelse(predProb > threshold, 1, 0) 
+
+best_threshold_lasso <- which.max(accVec)/res
+tempDF <- data.frame(k = thresholdVec, Accuracy = accVec)
+ggplot(tempDF, aes(x = k, y = Accuracy)) + geom_line() + geom_point(data = tempDF[which.max(accVec),], color = "red", shape = 1, size = 3) +
+  labs(x = "Classification Threshold", y = "Accuracy", title = "Choosing Optimal Classification Threshold")
+```
+
+The optimal threshold for the logistic lasso model is `r best_threshold_lasso`
+
+```{r}
+predOutcome <- ifelse(predProb > best_threshold_lasso, 1, 0)
+table(predOutcome, yvecTrain)
+```
+
+The confusion matrix shows that the logistic lasso model tends to have more false positives than false negatives. The other relevant metrics against
+the training set are:
+
+1. **Accuracy**: `r accuracy_func(predOutcome, yvecTrain)`
+2. **Specificity**: `r specificity_func(predOutcome, yvecTrain)`
+3. **Sensitivity**: `r sensitivity_func(predOutcome, yvecTrain)`
+4. **Precision**: `r precision_func(predOutcome, yvecTrain)`
+
+```{r, warning = FALSE, message = FALSE}
+predOutcome <- ifelse(predProb > best_threshold_lasso, 1, 0)
+performance_df <- data.frame(Name = "Logistic Lasso (1se=0.165, threshold=0.48",
+                             Accuracy = accuracy_func(predOutcome, yvecVal),
+                             Specificity = specificity_func(predOutcome, yvecVal),
+                             Sensitivity = sensitivity_func(predOutcome, yvecVal),
+                             Precision = precision_func(predOutcome, yvecVal))
+
+knnResTemp <- knn(train = Train[ , xvars, drop = FALSE],
+        test = Validation[ , xvars, drop = FALSE],
+        cl = Train$Outcome,
+        k = second_best_k)
+performance_df <- rbind(performance_df,
+                        data.frame(Name = "KNN (K=72)",
+                             Accuracy = accuracy_func(predOutcome2, Validation$Outcome),
+                             Specificity = specificity_func(predOutcome2, Validation$Outcome),
+                             Sensitivity = sensitivity_func(predOutcome2, Validation$Outcome),
+                             Precision = precision_func(predOutcome2, Validation$Outcome)))
+reactable(performance_df)
+```
+
+The logistic lasso model performed worse against the validation set compared to the training set, which suggests a problem with over fitting. Therefore,
+the best model for predicting player victory or defeat is the K-nearest neighbors model with an accuracy of 76.2%
+
+## References
+
+Martin, J. (2025). _"LASSO for Logistic Regression"_. Retrieved From: [https://rpubs.com/jmartin/1355833](https://rpubs.com/jmartin/1355833) 
+
+

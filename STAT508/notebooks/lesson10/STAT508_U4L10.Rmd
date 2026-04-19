@@ -1,0 +1,226 @@
+---
+title: "U4L10 - Ensemble Learning"
+output: html_document
+date: "Type date here"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r}
+#Delete all objects from Environment - Use with caution
+remove(list = ls()) 
+
+#Load Libraries
+library(tidyverse)
+library(rpart)
+library(rattle) #Include before randomForest so that randomForest::importance is not masked by rattle::importance
+library(randomForest)
+
+#Read in Data
+titanic <- read.csv("../../sample_data/L08_titanic3.csv")
+```
+
+## Example - Generating a Bootstrap Sample in R
+#### Part a - Generate a bootstrap sample using the first 10 rows and 4 columns of Titanic with a seed of 123
+```{r, eval = FALSE}
+#Create a temp copy of the dataset using the first 10 rows and first 4 columns
+tempTitanic <- titanic[1:10, 1:4]
+tempTitanic
+
+#Sample the row numbers with replacement
+set.seed(123)
+bs1Ind <- sample(1:nrow(tempTitanic), nrow(tempTitanic), replace = TRUE)
+set.seed(NULL)
+
+#View the select rows 
+table(bs1Ind)
+
+#View the dataset
+bs1Train <- tempTitanic[bs1Ind, ]
+```
+
+The in-bag observations are: In bag observations are the ones that are in the sample.
+
+
+
+The out-of-bag (OOB) observations are: Out of bag observations are the ones that were in the origional data but not in the bootstrapped sample
+
+## Example - Bagging Regression Trees
+```{r}
+#Generate First Bootstrap Sample
+set.seed(123)
+bs1Ind <- sample(1:nrow(titanic), nrow(titanic), replace = TRUE)
+set.seed(NULL)
+
+bs1Train <- titanic[bs1Ind, ]
+
+#Train a Regression Tree
+regTree1 <- rpart(Age ~ ., data = bs1Train, method = "anova")
+  
+#Plot Tree
+fancyRpartPlot(regTree1, cex = 0.7)
+```
+
+```{r}
+#Generate Second Bootstrap Sample
+set.seed(1234)
+bs2Ind <- sample(1:nrow(titanic), nrow(titanic), replace = TRUE)
+set.seed(NULL)
+
+bs2Train <- titanic[bs2Ind, ]
+
+#Train a Regression Tree
+regTree2 <- rpart(Age ~ ., data = bs2Train, method = "anova")
+
+#Plot Tree
+fancyRpartPlot(regTree2, cex = 0.7)
+```
+
+```{r}
+#Generate Third Bootstrap Sample
+set.seed(23)
+bs3Ind <- sample(1:nrow(titanic), nrow(titanic), replace = TRUE)
+set.seed(NULL)
+
+bs3Train <- titanic[bs3Ind, ]
+
+#Train a Regression Tree
+regTree3 <- rpart(Age ~ ., data = bs3Train, method = "anova")
+
+#Plot Tree
+fancyRpartPlot(regTree3, cex = 0.7)
+```
+
+
+## Example - Random Forest in R using Titanic Data
+## Part a - Prepare the data by performing an 80/20 training/validation split using a seed of 123. 
+```{r}
+#Perform an 80/20 training/validation split
+set.seed(123)
+trainInd <- sample(1:nrow(titanic), floor(0.8 * nrow(titanic)))
+set.seed(NULL)
+
+Train <- titanic[trainInd, ]
+Validation <- titanic[-trainInd, ]
+```
+
+#### Part b - Build a random forest for predicting whether a person survives based on the other variables in the dataset. The forest should consist of 500 trees. Each time a split is considered, use 3 variables. Explain the error message
+```{r, error = TRUE}
+rfModel <- randomForest(Survived ~ ., data = Train, ntree = 500, mtry = 3) #mytry is the number of features, the m number of variables to try 
+```
+
+#### Part c - Fix the code to eliminate the error message and train the model.
+```{r}
+rfModel <- randomForest(as.factor(Survived) ~ ., data = Train, ntree = 500, mtry = 3) 
+```
+
+#### Part d - What are the default options for ntree and mtry? 
+
+The default for mtry depends on whether it is a classification or regression task. The help documentation has a lot of the details.
+
+#### Part e - Find the probabilities of survival for the first 6 passengers in the validation set. Are you getting the same values?
+```{r}
+#Obtain Predicted Probabilities
+predProb <- predict(rfModel, newdata = Validation, type = "prob")
+
+#Display Predicted Probabilities for first 6 passengers
+head(predProb)
+```
+
+- The probabilities may differ from what is shown on the handout. Also, if you rerun the code, the probabilities may change.
+
+- In random forest, there is randomness involved each time we build a tree since we have to select a bootstrap sample. If mtry is less than p (number of variables in dataset), there is also a random selection of mtry variables each time we consider making a split.
+
+- To get reproducible results, use a seed.
+
+#### Part f - Using a seed of 123 for constructing the forest, report the confusion matrix for the testing data and the overall accuracy of the method.
+
+```{r}
+#Build model using a seed of 123
+set.seed(123)
+rfModel <- randomForest(as.factor(Survived) ~ ., 
+                        data = Train, 
+                        ntree = 500, 
+                        mtry = 3)
+set.seed(NULL)
+
+#Obtain predicted probabilities - not needed for confusion matrix but included to show we all get same probabilities when using the same seed
+predProb <- predict(rfModel, newdata = Validation, type = "prob")
+head(predProb)
+
+#To create the confusion matrix, we need to determine which class (No or Yes) is more likely. Although we could define a threshold and compare probabilities as we have done in the past, things are more challenging if y has more than 2 classes. So, let R pick for us.
+predSurv <- predict(rfModel , newdata = Validation, type = "response")
+  
+#Create confusion matrix
+table(predSurv, Validation$Survived)
+
+#Calculate accuracy
+mean(Validation$Survived == predSurv)
+```
+
+#### Part g - How does the confusion matrix from the last problem differ from rfModel$confusion?
+```{r}
+#Display Confusion Matrix
+rfModel$confusion
+
+#Calculate accuracy
+tempConfMat <- rfModel$confusion
+sum(tempConfMat[1,1] + tempConfMat[2,2])/sum(tempConfMat[1:2,1:2])
+```
+
+- The accuracy values are different.
+
+- The total number of observations in this confusion matrix is more than the number of observations in the previous confusion matrix.
+
+- The confusion matrix in this problem is based on predictions using the OOB data from the Training set. The earlier confusion matrix was based on the Validation set.
+
+## Example - Random Forest Variable Importance
+#### Part a - Generate the variable importance values. 
+```{r}
+#Build a random forest classifier using a seed of 123 and generate the variable importance values
+set.seed(123)
+rfModel <- randomForest(as.factor(Survived) ~ ., 
+                        data = Train, 
+                        ntree = 500, 
+                        mtry = 3,
+                        importance = TRUE)
+set.seed(NULL)
+```
+
+#### Part b - Extract the variable importance values
+```{r}
+#Extract the importance values from the randomForest model object
+rfModel$importance
+```
+
+```{r}
+#Extract the unscaled importance values using the importantce() function
+importance(rfModel)
+```
+
+```{r}
+#Extract the scaled importance values using the importance() function
+importance(rfModel, scale = FALSE)
+```
+
+#### Part c - Plot the variable importance values using the varImpPlot() function from the randomForest package.  
+```{r}
+#Plot the Variable Importance Values
+varImpPlot(rfModel, n.var = 6)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,182 @@
+---
+title: "STAT508_DAA10"
+author: "Ada Lazuli"
+output: html_document
+date: "Tuesday, April 21, 2026"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+```{r, warning = FALSE, message = FALSE}
+remove(list = ls()) 
+#Load Libraries
+library(tidyverse)
+library(rpart)
+library(rattle)
+library(randomForest)
+library(ISLR2)
+library(reactable)
+df <- Carseats                       
+```
+
+## Problem 1 - Data Preparation
+#### Part a -	The response variable, Sales, represents the number of car seats sold (in thousands) at a given location. For the sake of this problem (along with Problems 2 – 5), we will convert the Sales variable to a categorical variable. Create a variable named SalesVolume that takes a value of High if 8,000 or more units are sold and a value of Low otherwise. 
+
+```{r}
+df <- df %>%
+  mutate(SalesVolume = ifelse(Sales < 8, "Low", "High"))
+reactable(df[1:6,c("SalesVolume", "Sales")])
+```
+
+
+#### Part b - When building models, we do not want to accidentally include the Sales variable as a potential feature for predicting SalesVolume. Remove the Sales variable from the dataset.
+
+```{r}
+df <- df %>% select(-Sales)
+```
+
+
+#### Part c - Using a seed of 123, perform an 80/20 training/validation split of the dataset. You are expected to use the procedure presented in the lecture videos for performing the split.
+
+```{r}
+set.seed(123)
+trainInd <- sample(1:nrow(df), floor(0.8 * nrow(df)))
+set.seed(NULL)
+
+Train <- df[trainInd, ]
+Validation <- df[-trainInd, ]
+```
+
+
+## Problem 2 - Bagging Classification Trees
+#### Part a - Use the training data and a seed of 15 to bag 500 classification trees for predicting SalesVolume using the other variables in the dataset. Be sure that you include importance = FALSE.
+
+```{r}
+set.seed(15)
+model1 <- randomForest(as.factor(SalesVolume) ~ ., data = Train, ntree = 500, mtry = 10, importance = FALSE)
+```
+
+#### Part b - Using the out-of-bag (OOB) data and the associated confusion matrix, what is the accuracy of the classifier?
+
+```{r}
+tempConfMat <- model1$confusion
+oob_accuracy <- sum(tempConfMat[1,1] + tempConfMat[2,2])/sum(tempConfMat[1:2,1:2])
+oob_accuracy
+```
+
+The out of bag accuracy is `r round(oob_accuracy, digits = 3)`
+
+### Part c - 	What is the accuracy of the random forest classifier based on the validation data? 
+
+```{r}
+predVolume <- predict(model1, newdata = Validation, type = "response")
+val_accuracy <- mean(Validation$SalesVolume == predVolume)
+val_accuracy
+```
+
+The validation set accuracy is `r round(val_accuracy, digits = 3)`
+
+## Problem 3 - Random Forest of Classification Trees
+#### Part a - Use the training data and a seed of 15 build a random forest of 500 classification trees for predicting SalesVolume using the other variables in the dataset. Each time a split is considered, use 3 variables. Be sure that you include importance = FALSE.
+
+```{r}
+set.seed(15)
+model2 <- randomForest(as.factor(SalesVolume) ~ ., data = Train, ntree = 500, mtry = 3, importance = FALSE)
+```
+
+#### Part b - Using the out-of-bag (OOB) data and the associated confusion matrix, what is the accuracy of the classifier?
+
+```{r}
+tempConfMat <- model2$confusion
+oob_accuracy_m2 <- sum(tempConfMat[1,1] + tempConfMat[2,2])/sum(tempConfMat[1:2,1:2])
+oob_accuracy_m2
+```
+
+The out of bag accuracy is `r round(oob_accuracy_m2, digits = 3)`
+
+
+#### Part c - What is the accuracy of the random forest classifier based on the validation data?
+
+```{r}
+predVolume <- predict(model2, newdata = Validation, type = "response")
+val_accuracy_m2 <- mean(Validation$SalesVolume == predVolume)
+val_accuracy_m2
+```
+
+The validation set accuracy is `r round(val_accuracy_m2, digits = 3)`
+
+## Problem 4 - Comparing Ensemble Methods to Logistic Regression
+#### Part a -	Using the training data, build a logistic regression classifier for predicting SalesVolume using the other variables in the dataset.
+
+```{r}
+Train <- Train %>% mutate(SalesVolume = ifelse(SalesVolume == "High", 1,0))
+set.seed(15)
+model3 <- glm(SalesVolume ~., data = Train, family = binomial)
+```
+
+#### Part b - What is the accuracy of the logistic regression classifier based on the validation data?
+
+```{r}
+predProb <- predict(model3, newdata = Validation, type = "response")
+
+threshold <- 0.5
+
+predVolume <- ifelse(predProb > threshold, "High", "Low")
+
+val_accuracy_m3 <- mean(Validation$SalesVolume == predVolume)
+val_accuracy_m3
+```
+
+The validation set accuracy is `r round(val_accuracy_m3, digits = 3)`
+
+#### Part c - Of the 3 methods (bagging, random forest, and logistic regression), which method worked the best in terms of ability to generalize to new data? Explain your reasoning and include the specific numbers you are using to make the comparisons.
+
+```{r}
+Train <- Train %>% mutate(SalesVolume = ifelse(SalesVolume == 1, "High","Low"))
+temp_df <- data.frame(Model = c("Bagging", "Random Forest", "Logistic Regression"), "Validation Accuracy" = c(val_accuracy, val_accuracy_m2, val_accuracy_m3))
+reactable(temp_df)
+```
+
+Based on the performance of the three models, the logistic regression scored the highest accuracy of `r round(val_accuracy_m3, digits = 3)` against the validation set. This would imply that the logistic regression model would generalize the best against new data.
+
+## Problem 5 - Tuning mtry
+#### Part a - The value of mtry can be considered a tuning parameter within random forest. Write a loop that considers values of mtry ranging from 1 to 10. For each value of mtry calculate and store the validation set accuracy for the random forest classifier
+
+```{r}
+
+num_cols <- ncol(Train) - 1 
+oob_accuracy_vec <- rep(NA, num_cols)
+val_accuracy_vec <- rep(NA, num_cols)
+for (i in 1:num_cols){
+  set.seed(15)
+  model_temp <- randomForest(as.factor(SalesVolume) ~ ., data = Train, ntree = 500, mtry = i, importance = FALSE)
+  predVolume <- predict(model_temp, newdata = Validation, type = "response")
+  val_accuracy_vec[i] <- mean(Validation$SalesVolume == predVolume)
+  tempConfMat <- model_temp$confusion
+  oob_accuracy_vec[i] <- sum(tempConfMat[1,1] + tempConfMat[2,2])/sum(tempConfMat[1:2,1:2])
+}
+```
+
+#### Part b - Create a plot showing the validation set accuracy as a function of mtry. 
+
+```{r}
+val_str <-"Validation Set Accuracy"
+oob_str <- "Out Of Bag Accuracy"
+temp_df <- rbind(data.frame(mtry = 1:num_cols, accuracy = val_accuracy_vec, metric = val_str),
+                 data.frame(mtry = 1:num_cols, accuracy = oob_accuracy_vec, metric = oob_str))
+ggplot(temp_df, aes(x = mtry, y = accuracy, color = metric)) + geom_line() + geom_point() +
+  geom_point(data = (temp_df %>% filter(metric == val_str))[which.max(val_accuracy_vec),], shape = 1, size = 5) +
+  geom_point(data = (temp_df %>% filter(metric == oob_str))[which.max(oob_accuracy_vec),], shape = 1, size = 5) +
+  labs(x = "Number of Features Considered For Each Split", y = "Accuracy", title = "Accuracy Comparisons for Various Feature Quantities")
+```
+
+It is interesting to see the OOB Accuracy generally tends to increase with each increase in `mtry` while the validation accuracy generally tends to decrease with each increase of `mtry`.
+
+#### Part c - What is the optimal value of mtry?
+
+Using the performance against the validation set as decision criteria, the optimal `mtry` value is `r which.max(val_accuracy_vec)`.
+
+

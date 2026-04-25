@@ -1,0 +1,174 @@
+---
+title: "STAT508_DAA11"
+author: "Ada Lazuli"
+output: html_document
+date: "April 28, 2026"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Front Matter
+```{r, warning= FALSE, message = FALSE}
+remove(list = ls()) 
+
+library(tidyverse)
+library(dplyr)
+library(e1071)
+df <- read.csv("../../sample_data/L11_WBC.csv")
+```
+
+## Problem 1 - Data Preparation
+#### Part a - Remove the id column and determine the number of missing (NA) values in the each of the remaining columns.
+
+```{r}
+df <- df %>% select(-id)
+apply(X = df, MARGIN = 2, FUN = function(x) sum(is.na(x)))  
+```
+
+The `id` feature was removed and the remaining features do not have any missing observations.
+
+#### Part b - Find the variance of each of the 30 numeric features. Then, comment on whether you think you should scale the features. 
+
+```{r}
+apply(X = df %>% select(-diagnosis), MARGIN = 2, FUN = function(x) round(var(x), digits = 3))  
+```
+
+The variance among the features ranges wildly, with variacne less than 0.001 and greater than 30,000. Due to this range in variation amongst the features,
+I would opt for scaling.
+
+#### Part c - Using a seed of 321, perform an 80/20 training/validation split of the dataset. 
+
+```{r}
+set.seed(321)
+trainInd <- sample(1:nrow(df), floor(0.8 * nrow(df)))
+set.seed(NULL)
+
+Train <- df[trainInd, ]
+Validation <- df[-trainInd, ]
+```
+
+
+#### Part d - What proportion of the patients in the training set were diagnosed with a benign tumor?
+
+```{r}
+proportion <- mean(Train$diagnosis == "B")
+proportion
+```
+
+Approximately `r round(proportion, digits = 3)`% of the observations in the training set have a benign diagnosis. 
+
+## Problem 2 - Support Vector Classifier
+
+#### Part a - Use the training data, build a support vector classifier using a linear kernel and a cost of 0.001. Scale the data using the scale argument within the svm() function. Then, display a summary of the model.
+
+```{r}
+model1 <- svm(as.factor(diagnosis) ~ ., data = Train, kernel = "linear", cost = 0.001, scale = TRUE)
+summary(model1)
+```
+
+#### Part b - Produce the confusion matrix for the validation set predictions.
+
+```{r}
+predDiagnosis <- predict(model1, newdata = Validation)
+table(predDiagnosis, Validation$diagnosis)
+```
+
+#### Part c - What is the accuracy of the support vector classifier based on the validation data? 
+
+```{r}
+accuracy <- mean(predDiagnosis == Validation$diagnosis)
+accuracy
+```
+
+The accuracy for the linear kernel SVM against the validation set is: `r round(accuracy, digits = 3)`
+
+#### Part d -	Which values of gamma (γ) and coef0 are necessary for the polynomial kernel with degree = 1 to produce the same result as the linear kernel?
+
+Based on the documentation, the linear kernel uses:
+\[
+u^\prime v
+\]
+
+While the polynomial kernel uses:
+
+\[
+(\gamma \cdot u^\prime v + coef)^{degree}
+\]
+
+So a $\gamma = 1$ and a $coef = 0$ with a degree of $1$ would reduce to the same expression used by the linear kernl.
+
+```{r}
+model2 <- svm(as.factor(diagnosis) ~ ., data = Train, kernel = "polynomial", coef = 0, gamma = 1, degree = 1,  cost = 0.001, scale = TRUE)
+predDiagnosis <- predict(model2, newdata = Validation)
+accuracy_polynomial <- mean(predDiagnosis == Validation$diagnosis)
+accuracy_polynomial
+accuracy_polynomial == accuracy
+```
+
+
+
+## Problem 3 - Tuning the Support Vector Classifier
+#### Part a - a.	Apply the tune() function and consider the following values of cost: 0.001, 0.01, 0.1, 0.5, 1, 5, 10, 100, and 1000. For each cost, use the training data, build a support vector classifier for predicting the patient’s diagnosis using the 30 numeric variables using the svm() function, a linear kernel, and scale the data internally. 
+
+```{r}
+set.seed(1) # not required per instructions but needed for consistency in reporting
+tune.out <- tune(svm, as.factor(diagnosis) ~.,
+                 data = Train,
+                 kernel = "linear",
+                 scale = TRUE,
+                 ranges = list(cost = c(0.001, 0.01, 0.1, 0.5, 1, 5, 10, 100,1000)))
+
+tune.out$performances %>% arrange(error) %>% mutate(cost = paste(cost))
+```
+
+#### Part b - Which value of cost minimized the cross validation error?
+
+Based on the output, the cost parameter with a value of `0.5` performs the best with a seed of 1.
+
+
+#### Part c. - Using the value of cost reported in the Part b., what is the accuracy of the support vector classifier based on the validation data?
+
+```{r}
+model3 <- svm(as.factor(diagnosis) ~ ., data = Train, kernel = "linear", cost = 0.5, scale = TRUE)
+predDiagnosis <- predict(model3, newdata = Validation)
+accuracy_tuned <- mean(predDiagnosis == Validation$diagnosis)
+accuracy_tuned
+```
+
+The accuracy with using a cost of 0.5 with a linear kernel function is `r round(accuracy_tuned, digits=3)` against the validation set.
+
+## Problem 4 - Tuning the Support Vector Machine with Radial Kernel
+#### Part a - Apply the tune() function. Consider the following values of cost: 0.1, 0.5, 1, 5, 10, and 100. Consider the following values for gamma: 0.01, 0.5, 1, 2, 10. For each combination of cost and gamma, use the training data, build a support vector machine for predicting the patient’s diagnosis using the 30 numeric variables using the svm() function, a radial kernel, and scale the data internally. Use a random number seed of 1 and display a summary of the cross validation results.
+
+
+```{r}
+tune.out <- tune(svm, as.factor(diagnosis) ~.,
+                 data = Train,
+                 kernel = "radial", 
+                 ranges = list(cost = c(0.1, 0.5, 1, 5, 10, 100),
+                               gamma = c(0.01, 0.5, 1, 2, 10)))
+tune.out$performances %>% arrange(error) %>% mutate(cost = paste(cost))
+```
+
+#### Part b - Which combination of cost and gamma minimized the cross validation error?
+
+Based on the error, the pairing of a cost of 10 with a gamma of 0.01 produces the lowest cross validation error.
+
+#### Part c - Using the value of cost reported in the Part b., what is the accuracy of the support vector machine based on the validation data?
+
+```{r}
+model4 <- svm(as.factor(diagnosis) ~ ., data = Train, kernel = "radial", cost = 10, gamma = 0.01, scale = TRUE)
+predDiagnosis <- predict(model4, newdata = Validation)
+accuracy__radial_tuned <- mean(predDiagnosis == Validation$diagnosis)
+accuracy__radial_tuned
+```
+
+The final accuracy with a tuned radial basis kernel is `r round(accuracy__radial_tuned, digits=3)`
+
+
+
+
+

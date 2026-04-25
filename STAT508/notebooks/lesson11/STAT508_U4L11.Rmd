@@ -293,7 +293,7 @@ mean(Validation$HeartDisease == predHD)
 ```
 
 #### Part f - How does the performance of the SVM classifier compare a logistic regression containing all of the features? (Use a threshold of 0.5.)
-```{r, eval = FALSE}
+```{r}
 #Build the logistic regression model
 glmModel <- glm(as.factor(HeartDisease) ~., 
                 data = Train,
@@ -315,6 +315,3 @@ mean(predClass == Validation$HeartDisease)
 #### Part g - What does the result in the previous part suggest about the decision boundary?
 
 The relationship is linear.
-
-
-

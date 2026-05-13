@@ -1,0 +1,40 @@
+---
+title: "PolyITAN-1 Analysis"
+author: "Ada Lazuli"
+date: "2026-04-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+
+```{r, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(reactable)
+library(qqplotr)
+df <- read.csv("filtered.csv")
+df$log_transmission_rate <- log1p(df$transmission_rate)
+reactable(df)
+```
+
+## Model Creation
+
+```{r}
+# The * symbol includes main effects AND interactions
+model <- aov(log_transmission_rate ~ ground_lit * sat_lit * elevation_class + Station, data = df)
+
+# View the results
+summary(model)
+```
+
+## Verification of Assumptions 
+
+```{r}
+length(table(df$Station))
+```
+## ANOVA
+

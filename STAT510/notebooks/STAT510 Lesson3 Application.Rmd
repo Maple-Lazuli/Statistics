@@ -1,0 +1,326 @@
+---
+title: "STAT510 Lesson 3 Application"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    toc_depth: 2
+    theme: spacelab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+
+```{r}
+library(astsa)
+library(ggplot2)
+library(reactable) 
+```
+
+## Question 1
+
+>An AR(1) model is estimated to be $x_t = 23 + .47x_{t-1} + w_t$ with the usual assumptions about $w_t$. There were $n = 35$ observations, $\hat{\sigma}_w^2 = 3.4$, and $x_{35} = 35$. >Psi-weights $\psi_1$ to $\psi_5$ as given by R are:
+>```
+>[1] 0.47000000 0.22090000 0.10382300 0.04879681 0.02293450 0.01077922
+>```
+
+#### Part A.
+
+> Forecast the value of $x_{36}$, the value at time 36, and determine a 95% prediction interval for $x_{36}$.
+
+For the forecast value:
+
+$$
+\begin{aligned}
+x_t &= 23 + .47\cdot x_{t - 1} \\ \\
+x_{36} &= 23 + .47\cdot x_{35} = 23 + 47 (35) = 39.45
+\end{aligned}
+$$
+
+For the 95% prediction interval for $x_{36}$:
+
+$$
+\text{Standard Error} = \sqrt{\sigma^2_w \cdot \sum^{m - 1}_{j = 0}\Phi^2_j} = \sqrt{3.4 \cdot 1} = 1.8439
+$$
+
+
+The prediction interval for $x_{36}$ is $39.45 \pm 1.96*18439$ or $39.45 \pm 3.614$ 
+
+#### Part B.
+
+> Forecast the value of $x_{38}$ and determine a 95% prediction interval for $x_{38}$. 
+
+$$
+\begin{aligned}
+x_{37} &= 23 + .47 \cdot x_{36} = 23 + .47 (39.45) = 41.5415\\ \\
+x_{38} &= 23 + .47 \cdot x_{37} = 23 + .47 (41.5415) = 42.524505
+\end{aligned}
+$$
+$$
+\text{Standard Error } = \sqrt{\sigma^2_w \cdot \sum^2_{j = 0} \Psi^2_j} = \sqrt{\sigma^2_w \cdot (\Psi^2_0 + \Psi^2_1 + \Psi^2_2)} =\sqrt{3.4 \cdot (1^2 + 0.47^2 + 0.2209^2)} = 2.078
+$$
+
+The 95% prediction interval for $x_{38}$ is $42.524505 \pm 1.96*2.078$ or $42.524505 \pm 4.07288$
+
+
+## Question 2
+
+>>For this problem, use the dataset sim319week3.dat from the Lesson 3 Module. Download it to the directory you've set up for course datasets. It's a simulated series with $n = 500$ values.  In R, change the working directory to your directory that contains the dataset. Use these commands to load the scripts (make them available) and read the data:  
+
+
+```r
+library(astsa)
+series1 = scan ("sim319week3.dat")
+```
+
+#### Part A.
+
+> Plot the "series1" data. Comment on any important features. This command will do the trick:   `plot (series1, type="b")`
+
+```{r}
+series1 = scan ("../sample_data/sim319week3.dat")
+plot (series1, type="b")
+```
+
+Based on the plot, the seems like the time series might be stationary. The variation throughout the data seems to be the same, with a slight exception around index 300 that has both
+the largest and smallest values back to back. Additionally, no outliers seem present alog with no significant cyclical seasonality or long run cycles.
+
+#### Part B.
+
+>Examine the ACF and PACF of the data. Briefly indicate a possible model (or, models) and explain why you think this model (or models) will work.  
+>
+>The command `acf2 (series1, 20)` will give an ACF and PACF up to 20 lags.
+
+```{r}
+acf2(series1, 20)
+```
+
+Both the PACF and ACF plots depict two significant spikes followed by trail off. As a result, MA(1) or MA(2) models would be worth considering for this scenario.
+
+#### Part C.
+
+>After the astsa library is loaded, the command sarima (series name, order of AR, differencing order, MA order) will give the type of output described in Lesson 3.1 for this week.
+>For example, `sarima (series1, 0, 0, 1)` will fit a MA(1) to the data.  
+>
+>Fit an MA(1) model to the data. Using the diagnostics given in the output graph, discuss whether this seems to be a suitable model.
+
+```{r}
+sarima(series1, 0,0, 1)
+```
+
+The ACF of Residuals plot depicts a significant spike at lag 2 and every p-value by lag for the Ljung-Box statistic is below the threshold of 0.05, this is 
+a very poor model.
+
+#### Part D.
+
+> Fit an MA(2) model to the data. Using the diagnostics given in the output graph, discuss whether this seems to be a suitable model. 
+
+```{r}
+model <- sarima(series1, 0,0, 2)
+```
+
+The MA(2) model is significantly healthier since the QQ plot shows the residuals are normally distributed, the Ljung-Box p-values are all greater than 0.05,
+and there is not a single significant spike for the first 35 lags in the ACF plot.
+
+#### Part E.
+
+> Refer to the model in part D. explain whether the two MA coefficients are statistically significant or not.
+
+```{r}
+model$t.table
+```
+
+Based on the t.table, Both `ma1` and `ma2` are significant since the p-values are below 0.05. 
+
+#### Part F.
+
+> Write out the estimated equation for the MA(2) model.
+
+Based on the table:
+
+$$
+x_t - 24.9623 = w_t + 0.2526\cdot w_{t - 1} - 0.31\cdot w_{t-2}
+$$
+
+#### Part G.
+
+> Fit an ARIMA (1,0,1) to the data. This might also be called an ARMA (1,1). There's one AR term, one MA term and no differencing.
+Using the diagnostics given in the output graph, discuss whether this seems to be a suitable model.
+
+```{r}
+sarima(series1, 1,0, 1)
+```
+
+The ARIMA(1,0,1) modes does not meet the assumptions due to the significant spike at lag 2 in the ACF plot and due to several lags having a p-value less than 0.05 in
+ the Ljung-Box statistic plot.
+
+#### Part H.
+> Compare the MA(2) and ARMA(1,1) models. Does either seem better than the other? Explain.
+
+Since the ARMA(1,1) model fails to meet the assumptions, the MA(2) model is superior in this scenario.
+
+#### Part I.
+> Use the MA(2) to forecast values for the next 6 time periods past the end of the series. With astsa loaded, the command is `sarima.for(series1, 6, 0, 0, 2)`. The parameters being supplied, in order, are the series name, the number of times for forecasts, the AR order, the differencing and the MA order).
+As an answer give, the forecasts and their standard errors (technically, the standard errors are for the forecast errors).
+
+```{r}
+sarima.for(ts(series1), 6, 0, 0, 2)
+```
+
+Based on the R output, the forcasts are:
+
+```
+[1] 25.69257 24.91405 24.96227 24.96227 24.96227 24.96227
+```
+
+And the standard error for the forcasts are:
+
+```
+[1] 1.409664 1.453949 1.518190 1.518190 1.518190 1.518190
+```
+
+#### Part J.
+
+> Refer to the forecasts in part I. Explain why all forecasts after the second time after the series are the same as each other.
+
+Since the time series is stationary, the model converges to the mean (approximately `r round(mean(series1), digits=2)`) for each subsequent step after the forecast.
+
+## Question 3
+
+> For this problem, use the dataset lakesim.dat from the Lesson 3 Module. The simulated series is n = 100 consecutive annual average measures of a lake level.
+
+```{r}
+series2 = scan ("../sample_data/lakesim.dat")
+```
+
+#### Part A.
+
+> Create a time series plot of the data. Comment on any important features.
+
+```{r}
+plot (series2, type="b")
+```
+
+The plot shows a stationary times with somewhat constant variance, with a bit more between indices 20 and 40. Additionally, no outliers seem present and there does not appear to be any cyclical seasonality to be concerned with. Overall, there does not appear to be any significant issues with
+this time series.
+
+#### Part B.
+
+> Determine the ACF and PACF for the series. (Hint: The most efficient way to do this is to load the astsa library and then use the acf2 command.)
+
+```{r}
+acf2(series2, 20)
+```
+
+Based on the plots, the time series appears to be stationary due to the autocorrelation values trailing off. The first two spikes in the PACF plot are significant and indicate
+that an AR(2) model would be appropriate here.
+
+#### Part C.
+
+> Fit an AR(2) model to the series.  Using the diagnostics given in the output graph, discuss whether this seems to be a suitable model.  
+
+```{r}
+model2 <- sarima(series2, 2,0, 0)
+```
+
+Based on the plots, the model seems healthy. No significant spikes are present in the ACF plot and all of the p-values are above 0.05 in the Ljung-Box Statistic plot. Additionally,
+the residuals seem to follow a normal distribution based on the QQ plot.
+
+#### Part D.
+ 
+> Refer to part C. Explain whether the two AR coefficients are statistically significant or not.
+
+```{r}
+model2$t.table
+```
+
+Since the p-value is less than 0.05, the coefficients `ar1` and `ar2` are significant.
+
+#### Part E.
+
+> The output includes an estimate of the mean $\mu$. For an AR(2), the intercept of the usual regression type equation is $\delta = \mu(1 - \phi_1 - \phi_2)$. Calculate an estimate of the intercept and then write the AR(2) model with estimates in the usual regression type fashion.
+
+The usual regression form is:
+
+$$
+y_t = \delta + \phi_1\cdot y_{t_1} + \phi_2\cdot y_{t- 2} + w_t
+$$
+
+Solving for $\delta$ first:
+
+$$
+\delta = \mu(1 - \phi_1 - \phi_2) = 175.0170\cdot(1 - 0.8672 + 0.6888) = 143.794
+$$
+
+$$
+x_t = 143.794 + 0.8672\cdot x_{t - 1} - 0.6888 \cdot x_{t-2} + w_t, \quad w_t\overset{iid}{\sim} N(0, \sigma^2_w)
+$$
+
+
+#### Part F.
+
+> The final two observations in the series are 173.9 and 175.8 (in that time order). Use these values and the equation written in part E to forecast the values for the next three times past the series. Show the calculations. (You can use sarima.for as explained in question 2 part I to check your answers.)
+
+$$
+\begin{aligned}
+x_{101} &=  143.794 + 0.8672(175.8) - 0.6888(173.9)&= 176.465\\
+x_{102} &=  143.794 + 0.8672(176.465) - 0.6888(175.8)&= 175.733\\
+x_{102} &= 143.794 + 0.8672(175.733) - 0.6888(176.465)&= 174.641
+\end{aligned}
+$$
+
+## Question 4
+
+> Use the flourkansascity.dat dataset in the Lesson 3 Module for this problem. The series gives index value for monthly flour prices in a Kansas City commodity exchange. Again, the series time order is across rows in the dataset.
+
+```{r}
+series3 = scan ("../sample_data/flourkansascity.dat")
+```
+
+#### Part A.
+
+> Plot the flour price series. Comment on any important features.
+
+```{r}
+plot (series3, type="b")
+```
+
+There are not enough samples to determine whether the long run is cyclical. The first 60 samples rise start at approximately 100, rise to 220, then set back down at 100. The last 40 samples seem to only increase. Additionally not outliers seem present in the sample data.
+
+#### Part B.
+
+> Determine the ACF and PACF for the series. Propose a possible model (or models). Explain.
+
+```{r}
+acf2(series3, 20)
+```
+
+The singular spike at lag 1 in the PACF plot indicates that a AR(1) model should be explored for this data. Additionally. given the positive, negative, positive trends seen
+in the data, an operation such as first differences could be used to transform the time series into a more stable state for modeling.
+
+#### Part C.
+
+>Calculate the first difference for the series. The basic structure of the command is  
+>
+>New variable name = `diff( series name, 1)`
+>
+>For example, if the series is named prices, you might use the command `diff1=diff(prices,1)`.  
+>
+>Then, determine the ACF and PACF for the first differences. (For example, `acf2(diff1)` might work. Discuss the result.
+
+```{r}
+diff1 = ts(diff(series3,1))
+acf2(diff1)
+```
+
+The ACF and PACF plots only have the first lag as weakly significant with all subsequent lags being insignificant. The first lag being above the significance threshold
+could be bad luck from working with real world data. It seems more likely that the first difference is meaningless and random. Collecting a larger sample could provide
+further insight into this.
+

@@ -1,0 +1,299 @@
+---
+title: "STAT510 Lesson 1 Application"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    toc_depth: 2
+    theme: spacelab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+
+```{r}
+library(astsa)
+library(ggplot2)
+library(reactable) 
+```
+
+## Question 1
+
+The data for this problem are annual tree ring widths for 50 consecutive years. The dataset is named treering.dat and is linked in the Lesson 1 To Do List of the course website. Download the file to your computer. We suggest that you create a Stat510 folder on your computer if you haven’t already done so. Then within that folder, create a Datasets folder.  Download datasets to your Datasets folder.
+
+### Part A
+
+>The first command reads the data into a variable (object really) named x. The second command designates x as a time series object, a necessary step to make some of the time series commands work correctly. The third command creates a time series plot of x, the type = "b" part is optional – it puts symbols on the plot where data points fall.  
+
+>As the answer to this part, copy and paste the time series plot of the data. (If submitting in Word, right click the graph, copy it as an image file, switch to Word, and then paste. It can be resized there.
+
+```r
+x = scan ("treering.dat") 
+
+x = ts (x) 
+
+plot (x, type="b") 
+```
+
+```{r, message=FALSE, warning=FALSE}
+x = scan("../sample_data/treering.dat")
+x = ts(x) # Cast to a time series
+plot(x, type = 'b')
+```
+
+### Part B
+
+>Refer to the plot made for part A. Briefly discuss features of the plot. See Lesson 1.1 for this week to see what we’re worried about (trend, seasonality, outliers, etc.)
+
+The time series seems to lack a general trend of increasing or decreasing. The data seems to have a 10 year seasonality that alternates between decreasing and increasing.
+
+The most significant value appears to be at year 18 with a value close to 2.0, but it does not appear to be extreme enough to be an outlier.
+
+There does not appear to be a long-run cycle for this data nor does this data exhibit constant variance, as the first 30 seem to have more variation than the last 20 years.
+
+The data does have an abrupt change at year 30 where the 10 year season becomes smoothed compared to the first 30.
+
+### Part C
+
+>Use these two commands to get a plot of the autocorrelation function and a printed version of the values. 
+
+```r
+acf1 = acf(x) 
+```
+
+>Notes: The acf will include a lag 0 correlation which is simply the correlation between the variable and itself, so it must = 1. Ignore the lag 0 autocorrelation. The single command acf(x) all by itself will produce a plot of the ACF but won’t give the numerical values.  
+
+>As an answer to this part, first copy and paste the value of the acf given as a result of the second command. Then, discuss whether you think the pattern of the first few autocorrelations resembles the theoretical pattern of an AR(1) model. 
+
+```{r}
+acf1 = acf(x) # The acf function performs the printing and returns the values.
+acf1
+```
+
+Based on the image, the $\phi$ should be approximately 0.57 and meets the requirement $|\phi| < 1$. Additionally, the exponential decay is exhibited since lag 1 is 0.57, lag 2 is $0.275\approx 0.57^2$. However, lag 3 exceeds the exponential decay as $0.05 < 0.166 = 0.55^3$ Lastly, It is expected that the autocorrelation should continue to 
+taper to 0, but in this instance it exceeds the threshold at lag 9. In short, it generally fits the criteria. 
+
+
+### Part D
+
+>Use these four commands to do a regression for an AR(1) model: 
+ 
+```r
+lag1x = lag (x, -1) 
+y = ts.intersect (x, lag1x) 
+ar1model = lm (y[,1] ~ y[,2]) 
+summary (ar1model) 
+```
+ 
+>The first command creates the first lag of x. The second rather mysterious command creates a matrix named y in which the first column is x (original data) and the second is lag 1 of x. (You may alternatively use the cbind command.)  This creates the correct link between x and lag 1 of x for the regression that’s coming. The third command does a linear model (lm) relating x to lag 1of x (the two columns of y). Results from the regression are stored in an object names ar1model. The final command gives a summary of the regression results. 
+
+>As an answer, copy and paste the summarized regression results. Then, write the regression equation. 
+
+```{r}
+lag1x = lag (x, -1) 
+y = ts.intersect (x, lag1x) 
+ar1model = lm (y[,1] ~ y[,2]) 
+summary (ar1model) 
+```
+
+Based on the output, the equation is:
+
+$$
+\begin{aligned}
+x_t &= \delta + \phi x_{t-1} + w_t \\
+x_t &= 0.476 + 0.5514\cdot x_{t-1} + w_t
+\end{aligned}
+$$
+With $w_t \overset{iid}{\sim} N(0, \sigma^2_w)$
+
+### Part E
+
+>Now we’ll look at a plot of residuals versus predicted values for the regression that we just did. The command is  
+
+```r
+plot(fitted(ar1model),residuals(ar1model)) 
+```
+
+>Briefly discuss whether the plot looks the way it should for a good model. You don’t have to give the plot.   
+
+```{r}
+plot(fitted(ar1model),residuals(ar1model)) 
+```
+
+Most of the residuals are bounded between 0.5 and -0.5 without, but there is a single residual of 0.7 that seems excessive. However, aside from that singular residual,
+most of the plot seems healthy and exhibits homoscedasticity.
+
+### Part F
+
+>Now we’ll determine the ACF of the residuals. The command is 
+
+```r
+acf(residuals(ar1model)) 
+```
+
+>Briefly discuss whether the ACF of residuals looks like it should for a good model. 
+
+```{r}
+acf(residuals(ar1model)) 
+```
+
+Most of the ACF values for the residuals are within the [0.3 -0.3] boundary, with the exception of lag 9 marginally exceeding it. Overall, the model seems very healthy.
+
+### Part G
+
+>Use the regression equation found in part D to predict the level in the next year past the series. You’ll need the value of x at the end of the series to do this. One way to find that is to enter the command 
+```r
+x
+```
+>That will list the values of the series in order.  For larger datasets, x[length(x)] is a quick way to print the last value alone.  To print a few observations at the beginning or end of a dataset, please see R’s help pages for head() and tail() by entering help(head) or ?tail in the command line. 
+
+```{r}
+b0 <- coef(ar1model)[1] 
+b1 <- coef(ar1model)[2] 
+
+y_pred <- b0 + b1 * x[1:(length(x) - 1)]
+
+df <- rbind(data.frame(x = 1:length(x), y = as.numeric(x), source = "original"), data.frame(x = 2:length(x), y = as.numeric(y_pred), source = "predicted"))
+
+ggplot(df, aes(x = x, y = y, color = source)) + geom_line() + labs(title = "Original vs. Predicted", x = "Time", y = "Value")
+```
+
+```{r}
+df <- data.frame("x" = 1:(length(x)), "source" = round(x, digits = 3), "predicted" = round(c(NA, y_pred), digits = 3))
+reactable(df)
+b0 + b1 * x[length(x)]
+```
+
+First the first prediction for the next year outside of the data is `r b0` + `r b1` * `r x[length(x)]` = `r b0 + b1 * x[length(x)]`
+
+## Question 2
+
+For this problem, use the dataset oildata.dat. Download the dataset to your computer. The data are a time series of a price index for oil in the United States for 100 consecutive months. For month t, this measure is  where $x = \log_{10}\bigg(\frac{x_t}{x_1} \bigg)$ actual price.  
+
+### Part A
+
+>Refer back to part A of problem 1 to see how to read the data and create a time series plot of the data. Briefly describe the noteworthy features. What’s one obvious reason why the series is not a stationary series? 
+
+```{r}
+x = scan("../sample_data/oildata.dat")
+x = ts(x) # Cast to a time series
+plot(x, type = 'b')
+```
+
+The data has a very prominent positive trend that makes it non-stationary.
+
+### Part B
+
+>A first difference is defined as $x_t - x_{t - 1}$. For series with a strong trend, first differences may (or may not) be stationary. An example of how to create a first difference in R, is the following: 
+
+```r
+diff1 = diff (x, 1) 
+```
+
+>The diff1 name is arbitrary.  You can call it anything you like. Also, the x within the parentheses is the name that you have already given the data. If you called the original data something else, then that’s what goes there. 
+
+>Create first differences for this series and the plot the first differences. For example, if you called the first differences diff1, the command could be 
+
+```r
+plot (diff1, type = "b")            
+```
+ 
+>As the answer to this part, give the plot and briefly describe any noteworthy features of the plot.  
+
+```{r}
+diff1 = diff(x, 1) 
+plot(diff1, type = "b")            
+```
+
+The positive trend has been removed and there no seasonal or long-run cycles are present. However, the variance is not constant and there are several abrupt jumps.
+
+### Part C
+
+>Determine the ACF of the first differences. See part C of problem 1 for guidance.  
+
+>As an answer to this part, copy and paste the value of the acf given as a result of the second command. Then, discuss whether you think the pattern of the first few autocorrelations resembles the theoretical pattern of an AR(1) model. 
+
+```{r}
+acf1 = acf(diff1) # The acf function performs the printing and returns the values.
+acf1
+```
+
+$\phi \approx 0.3$ and meets the criteria $|\phi| < 1$. Additionally, the ACF values drop rapidly and taper towards zero. Other than the initial ACF reduction being more rapid than typical exponential decay, the pattern resembles theoretical AR(1) models.
+
+### Part D
+
+>A “moving average model of order 1” (abbreviated MA(1)) is defined as  
+
+$$
+x_t = \mu + w_t + \theta\cdot w_{t-1}
+$$
+
+>where wt are independently distributed with mean 0 and variance . That is, the value of x at time t = mean + random error at this time + random error from last time.  The theoretical ACF of an MA1 is simple – the first lag autocorrelation is non-zero while all other autocorrelations are 0.  
+
+>Refer back to the ACF found in part C.  Explain why a MA(1) might work as a model for the first differences 
+
+>Note: One of the “fun” parts of time series is that sometimes more than one model might work for a series.
+
+Since the random error has a mean of zero, it would follow that $x_t \approx \mu$ and is reasonable in this case since the first difference has a neutral trend.
+
+## Question 3
+
+Use the dataset jj.dat. The series gives measure of quarterly profits of the Johnson & Johnson Corporation for 84 consecutive quarters. 
+
+### Part A
+
+>Create a time series plot of the data. Give the plot as the answer to this part. 
+
+
+```{r}
+x = scan("../sample_data/jj.dat")
+x = ts(x) # Cast to a time series
+plot(x, type = 'b')
+```
+
+### Part B
+
+>Refer to the plot in part A. Discuss noteworthy features of the plot. See Lesson 1.1 for this week to review what we’re looking for.
+
+The plot shows that the time series has a positive general trend and a season cycle where the first quarter is lowest, each subsequent quarter is generally higher, and the first quarter is lower than the fourth quarter of the previous year. Additionally, the data lacks constant variance since it increases as time goes on. There does not appear to be a long run cycle nor any abrupt jumps.
+
+### Part C
+
+>Calculate a series that is the logarithm of the original series, and then plot the logarithm series. For example, if you had called the original series x, then this R sequence would do the job: 
+
+```r
+logx = log(x) 
+
+plot (logx, type = "b") 
+```
+
+>Give the plot of the logarithm data as the answer to this part and then discuss any differences between this plot and the plot for parts A and B. (For instance, are there changes in trend, variance issues, etc.) 
+
+```{r}
+logx = log(x) 
+
+plot (logx, type = "b") 
+```
+
+Following the logarithmic transformation, most of the characteristic behavior is still present, such as the seasonality and positive trend. However, the variance is 
+greatly reduced and seems to be constant throughout the duration of collection.
+
+### Part D
+
+>What regression model would you use to model the series in part C? Briefly describe the predictor variables in the model. See the second example of Lesson 1.1 for this week for guidance. 
+
+Since this seems to be a linear trend with four seasons, an appropriate model to explore is:
+
+$$
+x_t = \beta_1 t + \alpha_1 S_1 + \alpha_2 S_2 + \alpha_3 S_3 + \alpha_4 S_4 + \epsilon_t
+$$
+
+Where $\beta$ is the coefficient from regression, t is the value at a particular time step, $S_{1, \cdots, 4}$ are binary indicator variables for each season, $a_{1, \cdots, 4}$ are regression coefficients for each season, and $\epsilon_t$ is the random error such that $\epsilon_t \overset{iid}{\sim} N(0, \sigma^2)$
+

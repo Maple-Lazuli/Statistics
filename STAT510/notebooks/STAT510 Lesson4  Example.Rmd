@@ -1,0 +1,122 @@
+---
+title: "STAT510 Lesson 4 Examples"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    toc_depth: 2
+    theme: spacelab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+
+```{r}
+library(astsa)
+library(ggplot2)
+library(reactable) 
+```
+
+## Colorado River Analysis
+
+Data loading:
+
+```{r}
+flow <- ts(scan("../sample_data/coloradoflow.dat"))
+```
+
+#### Step 1
+
+The first step is to plot the time series.
+
+```{r}
+plot(flow, type="b")
+```
+
+
+There is no clear trend, but there seems to be a monthly seasonal effect. Since there is no trend, differencing does not seem to be needed.
+
+#### Step 2 and 3
+
+```{r}
+diff12 = diff(flow,12)
+acf2(diff12, 48)
+```
+
+The ACF plot shows a spike at time step 12, so the seasonality might be 12.
+
+The ACF plot suggests that AR(1) should be used and the MA plot suggests that MA(1) should be used.
+
+Based on this, a model that should be explored is:
+
+$$
+ARIMA(1,0,0) \times (0,1,1)_{12}
+$$
+
+#### Step 4 and 5
+
+```{r}
+sarima(flow, 1,0,0,0,1,1,12)
+```
+
+Based on the diagnostic plots, the model seems reasonable.
+
+#### Step 6
+
+```{r}
+sarima.for(flow, 24, 1,0,0,0,1,1,12)
+```
+
+## Beer Production in Australia
+
+#### Step 1
+
+The first step is to model the time series.
+
+```{r}
+beer <- ts(scan("../sample_data/beerprod.dat"))
+plot(beer, type="b")
+```
+
+There is a clear trend of seasonality with the up and down cycles. There is also the issue of a general upward trend.
+
+#### Step 2 and 3
+
+
+```{r}
+diff4 = diff(beer, 4)
+plot(diff4, type = "b")
+```
+
+```{r}
+diff1and4 = diff(diff4,1)
+acf2(diff4,24)
+```
+
+The TS plot still shows that the upward trend remains, however, the ACF/PACF do not suggest the need to difference further. In this case, we could detrend by subtracting an estimated linear trend from each observation as follows:
+
+```{r}
+dtb=residuals(lm (diff4~time(diff4)))
+acf2(dtb)
+```
+
+**Non-seasonal:** Looking at just the first 2 or 3 lags, either a MA(1) or AR(1) might work based on the similar single spike in the ACF and PACF, if at all. Both terms are also possible with an ARMA(1,1), but with both cutting off immediately, this is less likely than a single order model. With S=4, the nonseasonal aspect can sometimes be difficult to interpret in such a narrow window.
+**Seasonal:** Look at lags that are multiples of 4 (we have quarterly data). Not much is going on there, although there is a (barely) significant spike in the ACF at lag 4 and a somewhat confusing spike at lag 9 (in ACF). Nothing significant is happening at the higher lags. Maybe a seasonal MA(1) or MA(2) might work.
+
+#### Step 4
+
+```{r}
+sarima (dtb, 0,0,1,0,0,1,4)
+sarima (dtb, 1,0,0,0,0,1,4)
+sarima (dtb, 0,0,0,0,0,1,4)
+sarima (dtb, 1,0,0,0,0,2,4)
+```
+
+

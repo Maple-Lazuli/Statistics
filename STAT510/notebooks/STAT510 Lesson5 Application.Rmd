@@ -1,0 +1,349 @@
+---
+title: "STAT510 Lesson 5 Application"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    toc_depth: 2
+    theme: spacelab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+
+```{r, message=FALSE, warning=FALSE}
+remove(list = ls()) 
+library(astsa)
+library(ggplot2)
+library(reactable) 
+library(tidyverse)
+library(dplyr)
+```
+
+## Question 1
+
+>Use the “txmilk.dat” dataset. The data are n = 200 simulated monthly amounts of milk produced by dairies in Texas beginning with the month of December.  To read in monthly data that does not begin in January, use the following adjustment to the ts command: 
+>```r
+>milk = ts(scan("txmilk.dat"), start = c(1, 12), frequency = 12) 
+>```
+
+```{r}
+milk <- ts(scan("../sample_data/txmilk.dat"), start = c(1, 12), frequency = 12) 
+```
+
+#### Part A
+
+>Fit an additive decomposition model to the data.  See Lesson 5.1 for R code. (Use the decompose command and provide the $seasonal output.  Note that $figure is influenced by the start option.). Don’t forget to identify the frequency of the seasonal span (see Lesson 5.1).   
+>
+>Give the estimated values of the 12 monthly (seasonal effects)  
+
+The 12 monthly seasonal effects are presented in the output below. 
+
+```{r}
+decomp_milk <- decompose(milk, type="additive")
+head(decomp_milk$seasonal,12)
+```
+
+#### Part B
+
+>Suppose that in the month of September following the end of the series, the observed production is 576.  Calculate the seasonally adjusted value (de-seasonalized value) for this month. 
+
+$$
+\begin{aligned}
+\text{ Seasonally Adjusted Value } =& \text{ Observed Value } - \text{ Seasonal Effect } \\
+=&\ 576 - (-3.957526) \\
+=&\ 579.957526 
+\end{aligned}
+$$
+
+The adjusted seasonal value is $579.957526$
+
+#### Part C
+
+>Create the plot that graphs the components of the additive decomposition and give that plot as the answer to this part. (See Lesson 5.1.) 
+
+```{r}
+plot(decomp_milk)
+```
+
+#### Part D
+
+>Fit a multiplicative decomposition model to the data. Give the estimated values of the 12 monthly (seasonal) effects.
+
+```{r}
+decomp_milk_mul <- decompose(milk, type="multiplicative")
+head(decomp_milk_mul$seasonal,12)
+```
+
+#### Part E
+
+>Refer to part B. Repeat the calculation using the seasonal effect based on the multiplicative decomposition.
+
+$$
+\begin{aligned}
+\text{ Seasonally Adjusted Value } =& \text{ Observed Value } - \text{ Seasonal Effect } \\
+=&\ 576 - (0.9915673) \\
+=&\ 575.0084327
+\end{aligned}
+$$
+
+#### Part F
+
+>Use the stl command in R to do a Lowess decomposition. (See Lesson 5.1.) Give the estimated values of the 12 monthly effects.  
+
+```{r}
+milk_lowess <- stl(milk, "periodic")
+head(milk_lowess$time.series[, 1],12)
+```
+
+#### Part G
+
+>On the basis of a time series plot of the data (part of the graph for part C, by the way), do you think that an additive decomposition will be a suitable description of the data. (Hint: See page 1 of Lesson 5.1.)
+
+```{r}
+plot(milk)
+```
+
+The seasonal variation seems to be relatively constant for most of the seasons, with the later seasons being more difficult to tell. Therefore, additive decomposition
+seems to be more appropriate than multiplicative decomposition.
+
+## Question 2
+
+>This problem gives more practice on identifying ARIMA models.  Use the same dataset that you did for question 1. In R you might want to restart the session as the command you used in question 1 to identify the frequency might cause confusion when looking at lags in this question. Also, load the astsa library so you can use the acf2, sarima, and sarima.for commands. 
+
+#### Part A
+
+>Identify  a possible ARIMA model  (or models) for the series. Here’s the process and some hints.  Start with a time series plot of the data, or for that matter, you can rely on various results of question 1. Is there seasonality? If so, you may need a 12th difference (monthly data here). After the data are stationary seasonally, is there a trend? If so, you may need a first difference. When both trend and seasonality are present, you may need a 1st and 12th difference in sequence. Something like: 
+>```r
+>diff1 = diff(milk, 1) 
+>diff1and12=diff(diff1,12) 
+>```
+>Examine and interpret the acf and pacf of the appropriately differenced data.  
+>
+>As an answer to this part, briefly explain what differencing was necessary. Then describe the appearance of the acf and pacf (you could just give the plots) and briefly discuss what models are suggested.  
+>
+>Look at the first few lags for the non-seasonal part. Look at lags 12, 24, ... for the seasonal part. This one isn’t too bad. You might just see one spike in the seasonal part. 
+
+```{r}
+milk <- ts(scan("../sample_data/txmilk.dat")) 
+diff1 <- diff(milk, 1) 
+diff1and12 <- diff(diff1,12) 
+acf2(diff1)
+```
+
+The ACF plot for `diff1` only slightly decreases from lag 12 to lag 24, suggesting that the series is not stationary and thus not suitable.
+
+```{r}
+acf2(diff1and12)
+```
+
+The `ACF` plot for `diff1and12` is significantly healthier with the spikes trailing off towards low significance after lag 12. 
+
+Looking that the plot and following the notation:
+
+$$
+ARIMA(p,d,q) \times (P,D,Q)_S
+$$
+
+Due to the differencing for `diff1and12`. $d=1$ and $D=1$. The ACF plot shows a significant spike at lag 1 while the PACF plot decays from lag 1 to lag 4, suggesting a non-seasonal MA(1)
+component, so $q = 1$. Moreover, since the PACF was observed trailing off from lags 1 to 4, it seems to be the case that a non-seasonal AR(1) component is absent, so $p =0$
+
+The PACF has a significant spike at lag 12 and a weaker spike at lag 13, which could suggest a seasonal MA(1) component, so $Q = 1$. Additionally, the ACF plot 
+has a significant lag at 12 but all subsequent lags are insignificant. So, $P = 0$.
+
+Based on visual inspection, the most promising model is:
+
+$$
+ARIMA(0,1,1) \times (0,1,1)_{12}
+$$
+
+The other models that will be considered with be based on other possible interpretations of the non-seasonal components are:
+
+$$
+\begin{aligned}
+ARIMA(1,1,0) \times (0,1,1)_{12} &\quad (\small\text{ Evaluating an AR(1) component in place of a MA(1) component }) \\
+ARIMA(1,1,1) \times (0,1,1)_{12} &\quad (\small\text{ Evaluating both AR(1) and MA(1) components })
+\end{aligned}
+$$
+
+
+#### Part B
+
+>Estimate the model (or models) in part a. Examine the diagnostic statistics and decide on a “best” model. As an answer, briefly describe why you think this is a good model for these data. 
+
+**Diagnosing the $ARIMA(0,1,1) \times (0,1,1)_{12}$ model**
+
+
+```{r}
+model1 <- sarima(milk, 0, 1, 1, 0, 1, 1, 12)
+```
+
+The $ARIMA(0,1,1) \times (0,1,1)_{12}$ model seems very healthy based on the diagnostic plots. There are zero significant spikes in the ACF, the QQ plot suggests
+that the residuals are normally distributed, and the p-values for the Ljung-Box statistic are all greater than the threshold of 0.05. This model is suitable for
+further evaluation.
+
+**Diagnosing the $ARIMA(1,1,0) \times (0,1,1)_{12}$ model**
+
+```{r}
+model2 <- sarima(milk, 1, 1, 0, 0, 1, 1, 12)
+```
+
+Similar to the previous model, the $ARIMA(1,1,0) \times (0,1,1)_{12}$ model also seems very healthy based on the diagnostic plots. There are zero significant spikes in the ACF, the QQ plot suggests
+that the residuals are normally distributed, and the p-values for the Ljung-Box statistic are all greater than the threshold of 0.05. This model is suitable for
+further evaluation.
+
+**Diagnosing the $ARIMA(1,1,1) \times (0,1,1)_{12}$ model**
+
+```{r}
+model3 <- sarima(milk, 1, 1, 1, 0, 1, 1, 12)
+```
+
+
+Similar to the previous two models, the $ARIMA(1,1,1) \times (0,1,1)_{12}$ model seems very healthy based on the diagnostic plots. There are zero significant spikes in the ACF, the QQ plot suggests
+that the residuals are normally distributed, and the p-values for the Ljung-Box statistic are all greater than the threshold of 0.05. This model is suitable for
+further evaluation.
+
+**Model Choice**
+
+```{r}
+metrics_df <- data.frame(
+  model = c("ARIMA(0,1,1)X(0,1,1) 12", "ARIMA(1,1,0)X(0,1,1) 12", "ARIMA(1,1,1)X(0,1,1) 12"),
+  aic = c(model1$ICs[1],model2$ICs[1],model3$ICs[1]),
+  bic = c(model1$ICs[3],model2$ICs[3],model3$ICs[3])) %>% arrange(aic, ascending = TRUE)
+reactable(metrics_df)
+```
+
+Based on the output of the table, model that was guessed based on visual inspection of the ACF and PACF plots, $ARIMA(0,1,1) \times (0,1,1)_{12}$, is the best
+due to having both the lowest AIC and BIC values.
+
+#### Part C
+
+>Use the model identified in part b to forecast the milk production for the next 12 months past the end of the series. Give the forecasts. The sarima.for command would work for this. 
+
+```{r}
+sarima.for(milk,12, 0, 1, 1, 0, 1, 1, 12)
+```
+
+## Question 3
+
+>Use the dataset flourminn.dat for this problem. It gives n = 100 average monthly prices at a Minneapolis commodities exchange. (We saw similar data for Buffalo in a previous assignment).
+
+```{r}
+flour <- ts(scan("../sample_data/flourminn.dat"))
+plot(flour)
+```
+
+#### Part A
+
+>Use a centered moving average of an appropriate length to smooth out the series in order to see trend. Plot the smoothed trend line, either alone or superimposed on a plot of the data. See Lesson 5.2 of this week for guidance (and the first couple of pages of section 2.3 in the book). As the answer to this part, give the plot and a brief description of how you determined the moving averages (an R command could do it). 
+
+```{r}
+trendpattern_quarterly <- stats::filter (flour, filter = c(1/8, 1/4, 1/4, 1/4, 1/8), sides=2) # Trying a quarterly season
+trendpattern_yearly <- stats::filter (flour, filter = c(1/24,1/12,1/12,1/12,1/12,1/12,1/12,1/12,1/12,1/12,1/12,1/12,1/24), sides = 2) # Trying a yearly season
+
+plot(flour, type= "b", main = "moving average flour trends")
+lines (trendpattern_quarterly, col="red")
+lines (trendpattern_yearly, col="blue")
+legend("topright", legend = c("Quarterly Season Filter", "Yearly Season Filter"), col = c("red", "blue"), lty = 1, lwd = 2, bty = "n")
+
+```
+
+The `filter` function from the R `stats` package was used to apply different filters on the data and superimpose the results on the plot. Based on the plot, a symmetric quartly filter with 
+a length of 4 seems to be the most appropriate. Using a filter of length 12 did not capture the behavior well enough.
+
+#### Part B
+
+>Subtract the moving average trend from the data series and then plot this difference. This will be a plot of the monthly effects (with trend removed). See Lesson 5.2 for guidance. Give the plot as the answer to this part. 
+
+```{r}
+seasonals = flour - trendpattern_quarterly
+plot (seasonals, type = "b", main = "Seasonal pattern for flour prices")
+```
+
+#### Part C
+
+>Plot a Lowess smoothed trend line using f = 1/4 as the fraction of the data that contributes to the determination of each smoothed value. See Lesson 5.2 for guidance. Give the plot as the answer to this part. 
+
+```{r}
+flour <- ts(scan("../sample_data/flourminn.dat"), freq=4)
+plot(lowess(flour, f = 1/4), type = 'b', main = "Lowess Smoothing of Flour Prices")
+```
+
+#### Part D
+
+>Try each of these fractions (on different commands) as the f = in the plot of the Lowess smoother:  f = 1/10, f = 1/5, f = 1. Describe what happened to the smoothed pattern as the value of f increased.  You don’t have to give the plots – just describe what happened.
+
+```{r}
+plot(flour, type = 'b', main = "Lowess Smoothing of Flour Prices")
+lines (lowess(flour, f = 1/5), col="red")
+lines (lowess(flour, f = 1/10), col="blue")
+lines (lowess(flour, f = 1), col="green")
+legend("topright", legend = c("lowess=1/5", "lowess=1/10", "lowess=1"), col = c("red", "blue", "green"), lty = 1, lwd = 2, bty = "n")
+```
+
+As the fraction increased, the pattern became more and more smoothed. When a value of 1 was used, almost all of the informative characteristics of the data was
+smoothed away.
+
+## Question 4
+
+>Use the dataset bananas.dat for this problem. It gives n = 142 average monthly prices of bananas per pound in the U.S.   This data set begins in July, 2012 so you may set the start parameter to start=c(2012,7).
+
+```{r}
+bananas <- ts(scan("../sample_data/bananas.dat"), start = c(2012, 7))
+```
+
+#### Part A
+
+>Fit an ARIMA(0,1,1) model (with no constant) to this data. See Lesson 5.2 for guidance.  The R arima command automatically does not include a constant when there’s differencing.  
+>
+>    (i) What is the value of the MA coefficient? 
+>
+>   (ii) For an exponential smoothing procedure, what is the value of $\alpha$. See the ‘ARIMA(0,1,1) and Exponential Smoothing Equivalence’ section of Lesson 5.2 for guidance.  
+
+```{r}
+expsmoothfit = sarima(bananas, 0,1,1, no.constant = TRUE)
+```
+
+**Part A.i**
+
+The *MA* coefficient is `r expsmoothfit$fit$coef[1]`
+
+**Part A.ii**
+
+$$
+\alpha = (1 + \theta_1) = 1 + (- 0.2218) = 0.7782
+$$
+
+
+#### Part B
+
+> See Lesson 5.2. Make necessary changes in the last 6 lines or so of code to plot the data and the predicted (smoothed) values in this situation.  
+
+```{r}
+predicteds = bananas - resid(expsmoothfit$fit) # predicted values
+plot (bananas, type="b", main = "Exponential Smoothing of Banana Prices")
+lines (predicteds, col = "red")
+legend("bottomright", legend = c("Predicted Values"), col = c("red"), lty = 1, lwd = 2, bty = "n")
+```
+
+
+#### Part C
+
+> Keep referring to Lesson 5.2 – in particular, Example 5. Change it to get the forecast of the price at time 143 (next time past the series).
+
+```{r}
+ma_coef <- expsmoothfit$fit$coef[1]
+t_143 <- (1 +  ma_coef)*bananas[length(bananas)] - ma_coef*predicteds[length(bananas)]
+t_143
+```
+
+The forecasted value is: `r t_143`
+
+

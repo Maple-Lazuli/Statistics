@@ -1,0 +1,306 @@
+---
+title: "STAT510 Lesson 6 Application"
+author: "Ada Lazuli"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    toc_depth: 2
+    theme: spacelab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Front Matter
+
+```{r, message=FALSE, warning=FALSE}
+set.seed(101011)
+remove(list = ls()) 
+library(astsa)
+library(ggplot2)
+library(reactable) 
+library(tidyverse)
+library(dplyr)
+```
+
+## Question 1
+
+>  Following is the periodogram of n = 268 consecutive monthly measures of the mean thickness (Dobson units) of the ozone column in Arosa, Switzerland. The measurements are from February 1931 to May 1953.  
+
+
+#### Part A
+
+> Roughly, at what frequency is the dominant peak?  
+
+The frequency is roughly 0.085
+
+#### Part B
+
+> The period of a cycle is the reciprocal of the frequency. About what is the period for the frequency at which the dominant peak occurs? (Keep in mind that this is monthly data.)
+
+The period of the cycle is:
+
+$$
+\frac{1}{0.085} = 11.765
+$$
+
+Given that this is monthly data and roughly 11.765 samples make one cycle, it is likely that the period is actually 12 and represents one year.
+
+## Question 2
+
+> Use the dataset “speech.dat” from the Lesson 6 Module.  The data are described in Example 1.3 on page 4 of the textbook. The series is a sample of recorded speech of the phrase aaa…hhh, sampled for 0.1020 seconds at the rate of 10,000 points per second.  Thus there are n = 1020 data values.  The authors don’t say what exactly is the response variable, but a likely possibility for the response is a measure of the audio frequency of the sound.  (Maybe they held out from saying that to avoid confusion with the frequency of a cosine wave.) 
+>
+>The data can be read as `x = scan("speech.dat")` once the data file is in place on your computer.  
+
+>There’s no obvious trend seen in Figure 1.3 on page 4, but it never hurts to detrend before looking at a periodogram. At worst, detrending does nothing. Detrend in R by doing a linear regression on the time index. The detrended values are the residuals from this regression. The sequence of commands might be something like 
+>
+>```r
+>t = 1:1020 
+>regr = lm(x~t) 
+>y = residuals(regr) 
+>```
+>In the above code, y would be the detrended series, the residuals from a linear regression. 
+>Plot the periodogram of the detrended series. Give the plot and describe the pattern of peaks as they relate to frequency (the horizontal axis). 
+
+```{r}
+x <- scan("../sample_data/speech.dat")
+t <- 1:length(x)
+regr <- lm(x ~ t)
+y <- residuals(regr)
+plot(y)
+```
+
+```{r}
+mvspec(x, log="no")
+```
+
+The periodogram shows several frequencies between approximately 0.01 to 0.08, with the strongest ones being closer to 0.06. There are almost like two "levels"
+in the periodogram, with the lower ones near 0.01 and the larger ones centered on 0.06. This seems to capture the very quick cycles at the beginnng of 
+the vocalizations and the longer cycles in the middle to end of the cycles.
+
+```{r, warning=FALSE}
+df <- data.frame(y = x, x = 1:length(x))
+ggplot(df, aes(x = x, y = y)) +
+  geom_point() +
+  geom_vline(xintercept = 1/.07, color = "blue", linetype = "dashed", size = 1) +
+  geom_text(aes(x = 1/0.7, y = 0, label = "Freq: 1 / 0.07"), 
+            color = "blue", hjust = -0.1) + 
+  geom_vline(xintercept = 1/.01, color = "red", linetype = "dashed", size = 1) +
+  geom_text(aes(x = 1/0.01, y = 200, label = "Freq: 1 / 0.01"), 
+            color = "red", hjust = -0.1)
+```
+
+After plotting the two groupings of frequencies, it seems that the periodogram picked up on the two cycles with periods of approximately `r round(1/0.07, digits = 0)` and  $\approx$ `r round(1/0.01, digits = 0)`.
+
+
+## Question 3
+
+> See Lesson 12.1 for guidance.
+
+#### Part A
+
+> What are the weighting coefficients for a Daniell kernel with m = 3?  
+
+```{r}
+kernel("daniell", m= 3)
+```
+
+The weighting coefficient is `r kernel("daniell", m= 3)[0]` for time stamps $x_{t-3}$ to $x_{t + 3}$
+
+#### Part B
+
+>  What are the weighting coefficients for a Daniell kernel that is convoluted (repeated) with m = 3 in both smoothings?
+
+The weighting coefficients are:
+
+```{r}
+kernel("daniell", c(3,3)) 
+```
+
+## Question 4
+
+> Use the dataset “l12sim.dat” from the Lesson 6 Module. The data are n = 100 values simulated from an AR(2) model (with no trend). 
+
+```{r}
+x <- scan("../sample_data/l12sim.dat")
+```
+
+#### Part A
+
+> Use the mvspec command to determine the raw periodogram. Give the plot as the answer to this part.  
+
+```{r}
+mvspec(x, log="no")
+```
+
+#### Part B
+
+> Smooth the periodogram using a Daniell kernel with m = 2. Give the plot as the answer to this part. 
+
+```{r}
+k <- kernel("daniell", 2)
+mvspec(x, k, log="no")
+```
+
+#### Part C
+
+> Smooth the periodogram using a Daniell kernel with m = 3. Give the plot as the answer to this part.
+
+```{r}
+k <- kernel("daniell", 3)
+mvspec(x, k, log="no")
+```
+
+#### Part D
+
+> Smooth the periodogram using two passes of a Daniell kernel with m = 3 for each pass. Give the plot as the answer to this part.
+
+```{r}
+k <- kernel("daniell", c(3,3))
+specvalues <- mvspec(x, k, log="no")
+```
+
+#### Part E
+
+> Using the smoothed periodogram in part D, identify the approximate frequency at which the maximum spectral density occurs. This can be estimated visually, but also can be done be assigning a name to the mvspec result by doing something like `specvalues = mvspec(……)`  After carrying out this command, use the command specvalues and examine the results.  
+>
+> What is the frequency at which the peak occurs? What is the period associated with this frequency? Recall that period = 1/frequency.  
+
+```{r}
+freq <- specvalues$freq[which.max(specvalues$spec)]
+freq
+```
+
+The frequency is approximately `r freq` and the period is:
+
+$$
+\frac{1}{0.33} \approx 3
+$$
+
+
+#### Part F
+
+> Use spec.ar to determine the parametric estimate of the spectral density. Give the plot of the estimated spectral density. What AR order was used to create this estimate?  
+
+```{r}
+specvalues <- spec.ar(x, log="no")
+```
+
+An **AR(2) model** was used to create the estimate.
+
+#### Part G
+
+> Using the parametric estimate of the spectral density, estimate the approximate frequency at which the maximum spectral density occurs.
+
+```{r}
+freq <- specvalues$freq[which.max(specvalues$spec)]
+freq
+```
+The frequency is approximately `r freq` and the period is:
+
+$$
+\frac{1}{0.3306613} \approx 3
+$$
+
+
+#### Part H
+
+> (Review of ARIMA work) Determine the acf and pacf of the data series. Give the graphs and write a brief discussion of what model is suggested.  You might use load the astsa library and then acf2(..) 
+
+```{r}
+diff1 <- diff(x,1)
+diff1and3 <- diff(diff1,3)
+acf2(diff1and3)
+```
+
+
+Based on the differencing used to stabilize the plot, $d=1$ and $D = 1$. Additionally, $S = 3$ based on the previous work in the periodograms.
+
+The spike at lag 3 in the ACF decays quickly while the spike at lag 3 in the PACF decays slower, suggesting the seasonal components are $Q = 1$ and $P = 0$.
+
+At lags 1 and 2, the ACF a significant drop off lag 1 and continues to decay. While the PACF has drop off after lag 1, but seems to continue through lags 2 - 4. So, $q = 1$ and $p = 0$
+
+$$
+\begin{aligned}
+&ARIMA(p,d,q) \times (P,D,Q)_S \\
+&ARIMA(0,1,1) \times (0,1,1)_3 \\
+\end{aligned}
+$$
+
+#### Part I
+
+> Use the sarima command to examine whether an AR(2) is a suitable model for these data. 
+
+```{r}
+sarima(x, 2, 0, 0)
+```
+
+Based on the diagnostic plots, an AR(2) models seems suitable. The ACF does not depict any significant spikes, the residuals follow a normal distribution based on the QQ-Plot,
+and all of the p-values in the Ljung-Box statistic plot are well above the threshold of $0.05$
+
+## Question 5
+
+>In R, use the command 
+>```r
+>  x = rnorm(250,0,1) 
+>```
+>This will generate a series of 250 random values from a normal distribution with mean 0 and variance 1. In other words, we’ve generated a white noise series. 
+>
+>Use spec.ar to determine a parametric estimate of the spectral density for the simulated data.  
+>
+>Give the graph and write a (very) brief description of its appearance. 
+
+```{r}
+x <- rnorm(250,0,1) 
+specvalues <- spec.ar(x, log="no")
+```
+
+The plot depicts a straight line, indicating that are no frequencies that stand out in the data. Considering the data is completely random, it is reasonable that
+there are no cyclic elements in the data.
+
+## Question 6
+
+> Use the dataset tempm.dat in the Lesson 6 Module. It gives n = 400 weekly values of the average temperature in a city. Determine a nonparametric estimate of the spectral density of the series. Give the graph, describe what smoothing you used and describe the location of the peak density. 
+
+```{r}
+x <- scan("../sample_data/tempm.dat")
+```
+
+Starting with the raw periodogram
+
+```{r}
+specvalues <- mvspec(x, log="no")
+freq <- specvalues$freq[which.max(specvalues$spec)]
+freq
+```
+
+It looks like frequency is `r freq`. 
+
+Taking a second look with a non-parametric convoluted daniell kernel with $m = 3$:
+
+```{r}
+k <- kernel("daniell", c(3,3))
+specvalues <- mvspec(x,k, log="no")
+freq <- specvalues$freq[which.max(specvalues$spec)]
+freq
+```
+
+After smoothing, it looks like the frequency is still `r freq`.
+
+Lastly, exploring with a parametric approach for fun:
+
+```{r}
+specvalues <- spec.ar(x, log="no")
+freq <- specvalues$freq[which.max(specvalues$spec)]
+freq
+```
+
+The `spec.ar` function converged to an **AR(25)** model with a discovered frequency of `r freq`
+
+Based on the results of the periodograms, the period appears to be `r 1/0.02`
+
